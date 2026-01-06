@@ -80,22 +80,28 @@ export default function AuthPage() {
   const handleLogin = async () => {
     setIsLoading(true);
     try {
+      console.log("Attempting login with:", formData.email);
       const { data, error } = await supabase.auth.signInWithPassword({
         email: formData.email,
         password: formData.password,
       });
 
-      if (error) throw error;
+      if (error) {
+        console.error("Supabase login error:", error);
+        throw error;
+      }
 
+      console.log("Login successful:", data);
       toast({
         title: "Accesso effettuato",
         description: `Benvenuto, ${formData.email}!`
       });
       setShowPermissions(true);
     } catch (error: any) {
+      console.error("Login failed:", error);
       toast({
-        title: "Errore",
-        description: error.message || "Credenziali non valide",
+        title: "Errore di login",
+        description: error.message || "Credenziali non valide. Assicurati di aver creato un account prima.",
         variant: "destructive"
       });
     } finally {
@@ -123,6 +129,7 @@ export default function AuthPage() {
 
     setIsLoading(true);
     try {
+      console.log("Attempting registration with:", formData.email);
       const { data, error } = await supabase.auth.signUp({
         email: formData.email,
         password: formData.password,
@@ -134,16 +141,21 @@ export default function AuthPage() {
         }
       });
 
-      if (error) throw error;
+      if (error) {
+        console.error("Supabase registration error:", error);
+        throw error;
+      }
 
+      console.log("Registration successful:", data);
       toast({
         title: "Registrazione completata",
         description: `Benvenuto in Tower Hybrid, ${formData.firstName || formData.email}!`
       });
       setShowPermissions(true);
     } catch (error: any) {
+      console.error("Registration failed:", error);
       toast({
-        title: "Errore",
+        title: "Errore di registrazione",
         description: error.message || "Errore durante la registrazione",
         variant: "destructive"
       });
@@ -288,6 +300,12 @@ export default function AuthPage() {
             {mode === "login" ? "Accedi al tuo account" : "Crea il tuo account"}
           </p>
         </div>
+
+        {mode === "login" && (
+          <div className="p-3 rounded border border-yellow-500/30 bg-yellow-500/10 text-yellow-400 text-sm text-center">
+            ⚠️ Prima accesso? Usa <strong>"Registrati"</strong> per creare un account
+          </div>
+        )}
 
         <div className="flex gap-2 p-1 bg-gray-900/50 rounded border border-gray-800">
           <button

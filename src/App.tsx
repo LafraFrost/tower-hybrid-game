@@ -8,6 +8,7 @@ import { Toaster } from "./components/ui/toaster";
 import Landing from "./pages/Landing";
 import AuthPage from "./pages/AuthPageSupabase";
 import AdminPanel from "./pages/AdminPanel";
+import SupabaseDebug from "./pages/SupabaseDebug";
 import HeroSelection from "./pages/HeroSelection";
 import MainMenu from "./pages/MainMenu";
 import ModeMenu from "./pages/ModeMenu";
@@ -25,6 +26,7 @@ export default function App() {
           <Route path="/" component={Landing} />
           <Route path="/auth" component={AuthPage} />
           <Route path="/admin" component={AdminPanel} />
+          <Route path="/debug" component={SupabaseDebug} />
           <Route path="/hero-selection" component={HeroSelection} />
           <Route path="/main-menu" component={MainMenu} />
           
