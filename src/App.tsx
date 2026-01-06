@@ -10,6 +10,7 @@ import HeroSelection from "./pages/HeroSelection";
 import MainMenu from "./pages/MainMenu";
 import ModeMenu from "./pages/ModeMenu";
 import CampaignMap from "./pages/TacticalScreen";
+import HomeDashboard from "./pages/HomeDashboard";
 import TabletopSession from "./pages/TabletopSession";
 import RoomDashboard from "./pages/RoomDashboard";
 
@@ -27,6 +28,7 @@ export default function App() {
           <Route path="/mode" component={ModeMenu} />
           
           {/* Solo Campaign */}
+          <Route path="/home" component={HomeDashboard} />
           <Route path="/solo" component={CampaignMap} />
           
           {/* Tabletop Multiplayer */}

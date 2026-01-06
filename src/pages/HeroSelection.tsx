@@ -29,7 +29,7 @@ export default function HeroSelection() {
     if (selectedHeroName) {
       selectHero(selectedHeroName);
       setGameMode('solo');
-      setLocation("/solo"); // Vai alla mappa con le costruzioni
+      setLocation("/home"); // Vai alla mappa casa con Segheria/Miniera
     }
   };
 
