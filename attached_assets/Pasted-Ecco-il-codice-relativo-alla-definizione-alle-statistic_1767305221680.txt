@@ -1,0 +1,87 @@
+Ecco il codice relativo alla definizione, alle statistiche e alla gestione dei nemici nel gioco.
+1. Statistiche e Definizioni (GameData.ts)
+Qui sono definiti i "blueprint" dei nemici, con le loro statistiche base e il comportamento dell'IA (priorità di target). C'è anche una funzione per scalare la difficoltà in base al numero di giocatori.
+code
+TypeScript
+// GameData.ts
+
+export const GAME_DATA = {
+    // ... (eroi omessi)
+    
+    ENEMY_STATS: {
+        FanteOssuto: { 
+            HP_BASE: 5, 
+            DMG_BASE: 2, 
+            DEF_BASE: 0, 
+            MOV: 2, 
+            AI_PRIORITY: "HIGH_DMG_HERO" // Attacca chi fa più danni
+        },
+        IntercettoreVeloce: { 
+            HP_BASE: 12, 
+            DMG_BASE: 3, 
+            DEF_BASE: 1, 
+            MOV: 3, 
+            AI_PRIORITY: "LOW_HP_HERO" // Caccia i target fragili
+        },
+        GroviglioDiCenere: { 
+            HP_BASE: 30, 
+            DMG_BASE: 4, 
+            DEF_BASE: 3, 
+            MOV: 1, 
+            AI_PRIORITY: "HIGH_DEF_HERO", // Tank buster
+            SPECIAL: "Shielded by Fanti" 
+        },
+    },
+};
+
+// Funzione per potenziare i nemici se ci sono più giocatori (N)
+export function scaleEnemies(enemyBaseStats: any, N: number) {
+    const scaleFactor = (1 + 0.5 * N); // +50% stats per ogni giocatore extra (semplificato)
+    const scaledStats: { [key: string]: any } = {};
+    
+    for (const key in enemyBaseStats) {
+        scaledStats[key] = {
+            ...enemyBaseStats[key],
+            HP_SCALED: Math.round(enemyBaseStats[key].HP_BASE * scaleFactor),
+            DMG_SCALED: Math.round(enemyBaseStats[key].DMG_BASE * scaleFactor)
+        };
+    }
+    return scaledStats;
+}
+2. Interfaccia Unità (interfaces.ts)
+I nemici condividono la stessa interfaccia IUnit degli eroi, ma con type: 'enemy'.
+code
+TypeScript
+// interfaces.ts
+
+export interface IUnit {
+    id: string;          // es. "enemy_1", "boss_groviglio"
+    type: 'hero' | 'enemy';
+    heroClass?: string;  // Opzionale per i nemici
+    currentHP: number;
+    maxHP: number;
+    currentPA?: number;  // Generalmente i nemici hanno logiche fisse, non PA dinamici
+    currentR2?: number;  
+    gridCoords: string;  // Posizione sulla griglia "x,y"
+    activeBuffs: string[]; 
+    heroName?: string;   // Nome visualizzato (es. "Fante Ossuto")
+    isReady?: boolean;
+}
+3. Istanziazione in Combattimento (ProjectorView.tsx)
+In questo momento, nel prototipo, i nemici vengono generati manualmente nella funzione handleEnterCombat. Ecco come appare la creazione di un nemico nel codice attuale:
+code
+TypeScript
+// ProjectorView.tsx -> handleEnterCombat
+
+// ...
+// Add Enemy
+combatState.units["enemy_1"] = {
+    id: "enemy_1",
+    type: 'enemy',
+    heroName: "Fante Ossuto", // Nome visibile nell'UI
+    currentHP: 15,            // Hardcoded per demo, dovrebbe venire da GAME_DATA
+    maxHP: 15,
+    gridCoords: "4,2",        // Posizione iniziale
+    activeBuffs: []
+};
+// ...

@@ -1,0 +1,27 @@
+{
+  "user": {
+    "id": 1,
+    "email": "frost@example.com",
+    "firstName": "Frost",
+    "lastName": "Player",
+    "isAdmin": false
+  },
+  "resources": {
+    "wood": 150,
+    "stone": 80,
+    "energy": 100,
+    "money": 500
+  },
+  "deck": [
+    "Attacco Base",
+    "Difesa",
+    "Cura Minore",
+    "Fireball",
+    "Scudo Magico"
+  ],
+  "progression": {
+    "level": 5,
+    "experience": 1250,
+    "completedQuests": ["intro", "first_dungeon", "bridge_quest"]
+  }
+}

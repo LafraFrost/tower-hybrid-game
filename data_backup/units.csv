@@ -1,0 +1,3 @@
+"id","game_id","type","name","class","hp","max_hp","pa","r2","x","y","owner_id"
+"1","1","HERO","Ombra","DPS","12","12","3","4","0","3",
+"2","1","ENEMY","Fante Ossuto","Minion","5","5","0","0","3","2",

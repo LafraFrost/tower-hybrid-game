@@ -1,0 +1,3 @@
+"id","email","password_hash","first_name","last_name","profile_image_url","is_admin","created_at","last_login_at","camera_permission","location_permission"
+"1","lafranconi.andrea96@gmail.com","$2b$10$9Zg0fNMsEScR3eX4m.14MufHHP8AXzB7Qg/gO/7Z3yG5aw85bHEIy","admin","admin",,"true","""2026-01-01T23:28:51.700Z""","""2026-01-03T22:24:44.859Z""","true","true"
+"2","lafranconi.andrea96drone@gmail.com","$2b$10$RHPdw6zrGqA2REUomYMkk.9VobYktx.4GJe4ioEx.2TWNTD8wJ5dS","Prova","lafranconi",,"false","""2026-01-02T00:20:18.290Z""","""2026-01-02T00:27:24.842Z""","false","false"

@@ -1,0 +1,5 @@
+{
+  "name": "Tower Hybrid Board Game",
+  "description": "A hybrid digital board game prototype featuring a public projector view and private player HUDs synced via simulated state.",
+  "requestFramePermissions": []
+}
