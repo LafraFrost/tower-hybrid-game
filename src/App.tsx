@@ -6,7 +6,7 @@ import { Toaster } from "./components/ui/toaster";
 
 // Pages
 import Landing from "./pages/Landing";
-import AuthPage from "./pages/AuthPage";
+import AuthPage from "./pages/AuthPageSupabase";
 import AdminPanel from "./pages/AdminPanel";
 import HeroSelection from "./pages/HeroSelection";
 import MainMenu from "./pages/MainMenu";

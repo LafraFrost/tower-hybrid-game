@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useCustomAuth } from "@/hooks/use-custom-auth";
+import { useCustomAuth } from "@/hooks/use-custom-auth-supabase";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { Redirect, useLocation } from "wouter";

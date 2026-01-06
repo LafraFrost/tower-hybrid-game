@@ -2,7 +2,7 @@ import { NeonButton } from "@/components/NeonButton";
 import { useLocation } from "wouter";
 import { motion } from "framer-motion";
 import { LogIn, LogOut, Shield, User } from "lucide-react";
-import { useCustomAuth } from "@/hooks/use-custom-auth";
+import { useCustomAuth } from "@/hooks/use-custom-auth-supabase";
 import { Button } from "@/components/ui/button";
 
 export default function Landing() {

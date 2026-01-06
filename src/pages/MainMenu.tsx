@@ -2,7 +2,7 @@ import { NeonButton } from "@/components/NeonButton";
 import { useLocation } from "wouter";
 import { motion } from "framer-motion";
 import { User, QrCode, LogIn, LogOut, Shield } from "lucide-react";
-import { useCustomAuth } from "@/hooks/use-custom-auth";
+import { useCustomAuth } from "@/hooks/use-custom-auth-supabase";
 import { Button } from "@/components/ui/button";
 import { useQuery } from "@tanstack/react-query";
 
