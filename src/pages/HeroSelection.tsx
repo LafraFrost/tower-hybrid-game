@@ -29,8 +29,7 @@ export default function HeroSelection() {
     if (selectedHeroName) {
       selectHero(selectedHeroName);
       setGameMode('solo');
-      // Dopo la selezione dell'operativo vai alla mappa casa con le strutture
-      setLocation("/home");
+      setLocation("/solo"); // Vai alla mappa con le costruzioni
     }
   };
 
