@@ -6,6 +6,8 @@ import { Toaster } from "./components/ui/toaster";
 
 // Pages
 import Landing from "./pages/Landing";
+import AuthPage from "./pages/AuthPage";
+import AdminPanel from "./pages/AdminPanel";
 import HeroSelection from "./pages/HeroSelection";
 import MainMenu from "./pages/MainMenu";
 import ModeMenu from "./pages/ModeMenu";
@@ -21,6 +23,8 @@ export default function App() {
         <Switch>
           {/* Authentication & Setup */}
           <Route path="/" component={Landing} />
+          <Route path="/auth" component={AuthPage} />
+          <Route path="/admin" component={AdminPanel} />
           <Route path="/hero-selection" component={HeroSelection} />
           <Route path="/main-menu" component={MainMenu} />
           
