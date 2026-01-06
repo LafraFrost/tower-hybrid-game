@@ -1,8 +1,11 @@
 import type { Config } from "tailwindcss";
+import animate from "tailwindcss-animate";
+import typography from "@tailwindcss/typography";
 
 export default {
   darkMode: ["class"],
-  content: ["./client/index.html", "./client/src/**/*.{js,jsx,ts,tsx}"],
+  // ABBIAMO TOLTO "client/" DA QUI SOTTO:
+  content: ["./index.html", "./src/**/*.{js,jsx,ts,tsx}"],
   theme: {
     extend: {
       borderRadius: {
@@ -51,7 +54,6 @@ export default {
           "4": "hsl(var(--chart-4))",
           "5": "hsl(var(--chart-5))",
         },
-        // Neon Custom Colors
         "neon-cyan": "hsl(var(--neon-cyan))",
         "neon-magenta": "hsl(var(--neon-magenta))",
         "neon-yellow": "hsl(var(--neon-yellow))",
@@ -78,5 +80,5 @@ export default {
       },
     },
   },
-  plugins: [require("tailwindcss-animate"), require("@tailwindcss/typography")],
+  plugins: [animate, typography],
 } satisfies Config;
