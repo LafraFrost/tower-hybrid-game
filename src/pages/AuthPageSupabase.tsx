@@ -137,7 +137,8 @@ export default function AuthPage() {
           data: {
             first_name: formData.firstName,
             last_name: formData.lastName,
-          }
+          },
+          emailRedirectTo: `${window.location.origin}/`,
         }
       });
 
@@ -147,6 +148,16 @@ export default function AuthPage() {
       }
 
       console.log("Registration successful:", data);
+
+      // Auto-login dopo registrazione (senza aspettare email confirmation)
+      if (data.user) {
+        console.log("Auto-logging in after registration...");
+        await supabase.auth.signInWithPassword({
+          email: formData.email,
+          password: formData.password,
+        });
+      }
+
       toast({
         title: "Registrazione completata",
         description: `Benvenuto in Tower Hybrid, ${formData.firstName || formData.email}!`
@@ -154,11 +165,21 @@ export default function AuthPage() {
       setShowPermissions(true);
     } catch (error: any) {
       console.error("Registration failed:", error);
-      toast({
-        title: "Errore di registrazione",
-        description: error.message || "Errore durante la registrazione",
-        variant: "destructive"
-      });
+      
+      // Se il login automatico fallisce per email non confermata, suggerisci di controllare email
+      if (error.message?.includes("Email not confirmed")) {
+        toast({
+          title: "Email non confermata",
+          description: "Controlla la tua email e clicca il link di conferma per attivare l'account",
+          variant: "destructive"
+        });
+      } else {
+        toast({
+          title: "Errore di registrazione",
+          description: error.message || "Errore durante la registrazione",
+          variant: "destructive"
+        });
+      }
     } finally {
       setIsLoading(false);
     }
