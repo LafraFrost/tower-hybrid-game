@@ -56,12 +56,30 @@ export default function AuthPage() {
           setPermissionsGranted(prev => ({ ...prev, location: true }));
           toast({ title: "Localizzazione autorizzata", description: "Permesso concesso" });
           localStorage.setItem('location_permission', 'true');
-          localStorage.setItem('last_location', JSON.stringify({
+          
+          // Salva la location attuale
+          const currentLocation = {
             latitude: position.coords.latitude,
             longitude: position.coords.longitude,
             accuracy: position.coords.accuracy,
             timestamp: new Date().toISOString()
-          }));
+          };
+          localStorage.setItem('last_location', JSON.stringify(currentLocation));
+          
+          // Salva anche nella cronologia per l'admin panel
+          try {
+            const historyStr = localStorage.getItem('gps_tracking_history') || '[]';
+            const history = JSON.parse(historyStr);
+            history.push(currentLocation);
+            // Mantieni solo le ultime 100 location
+            if (history.length > 100) {
+              history.shift();
+            }
+            localStorage.setItem('gps_tracking_history', JSON.stringify(history));
+          } catch (error) {
+            console.error('Error saving GPS history:', error);
+          }
+          
           resolve(true);
         },
         () => {

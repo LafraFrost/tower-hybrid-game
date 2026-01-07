@@ -1,0 +1,228 @@
+import { useState, useEffect } from "react";
+import { useCustomAuth } from "@/hooks/use-custom-auth-supabase";
+import { Redirect, useLocation } from "wouter";
+import { Button } from "@/components/ui/button";
+import { ChevronLeft, Shield, Users, MapPin, RefreshCw } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
+
+interface StoredLocation {
+  latitude: number;
+  longitude: number;
+  accuracy: number;
+  timestamp: string;
+  email?: string;
+  name?: string;
+}
+
+export default function AdminPanel() {
+  const { user, isLoading: authLoading, isAdmin } = useCustomAuth();
+  const [, setLocation] = useLocation();
+  const [activeTab, setActiveTab] = useState<'users' | 'tracking'>('users');
+  const { toast } = useToast();
+  const [storedLocations, setStoredLocations] = useState<StoredLocation[]>([]);
+  const [refreshing, setRefreshing] = useState(false);
+
+  // Carica le location dal localStorage
+  useEffect(() => {
+    loadLocations();
+  }, []);
+
+  const loadLocations = () => {
+    try {
+      const locationStr = localStorage.getItem('gps_tracking_history');
+      if (locationStr) {
+        const locations = JSON.parse(locationStr);
+        setStoredLocations(Array.isArray(locations) ? locations : []);
+      }
+    } catch (error) {
+      console.error('Error loading locations:', error);
+    }
+  };
+
+  const handleRefresh = () => {
+    setRefreshing(true);
+    setTimeout(() => {
+      loadLocations();
+      setRefreshing(false);
+      toast({
+        title: "Aggiornato",
+        description: "Posizioni ricaricate"
+      });
+    }, 500);
+  };
+
+  const clearLocations = () => {
+    if (window.confirm('Sei sicuro di voler eliminare la cronologia GPS?')) {
+      localStorage.removeItem('gps_tracking_history');
+      setStoredLocations([]);
+      toast({
+        title: "Cronologia eliminata",
+        description: "I dati GPS sono stati cancellati"
+      });
+    }
+  };
+
+  if (authLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-black">
+        <div className="w-12 h-12 border-4 border-cyan-500 border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
+
+  if (!user || !isAdmin) {
+    return <Redirect to="/" />;
+  }
+
+  return (
+    <div className="min-h-screen bg-black text-white">
+      <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-fuchsia-900/10 via-black to-black pointer-events-none" />
+      
+      {/* Header */}
+      <div className="relative z-20 flex items-center justify-between p-4 border-b border-fuchsia-500/30 bg-black/80 backdrop-blur">
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => setLocation('/')}
+          className="text-fuchsia-400 hover:text-fuchsia-300"
+        >
+          <ChevronLeft className="w-4 h-4 mr-2" />
+          Indietro
+        </Button>
+        <div className="text-center flex items-center gap-2">
+          <Shield className="w-5 h-5 text-fuchsia-400" />
+          <h1 className="text-lg font-display text-fuchsia-400 uppercase tracking-wider">Admin Panel</h1>
+        </div>
+        <div className="w-20" />
+      </div>
+
+      {/* Tabs */}
+      <div className="relative z-10 flex gap-2 p-4 border-b border-gray-800 flex-wrap">
+        <Button
+          variant={activeTab === 'users' ? 'default' : 'ghost'}
+          size="sm"
+          onClick={() => setActiveTab('users')}
+          className={activeTab === 'users' ? 'bg-cyan-500 text-black' : 'text-gray-400'}
+        >
+          <Users className="w-4 h-4 mr-2" />
+          Utenti Online
+        </Button>
+        <Button
+          variant={activeTab === 'tracking' ? 'default' : 'ghost'}
+          size="sm"
+          onClick={() => setActiveTab('tracking')}
+          className={activeTab === 'tracking' ? 'bg-fuchsia-500 text-white' : 'text-gray-400'}
+        >
+          <MapPin className="w-4 h-4 mr-2" />
+          Tracking GPS
+        </Button>
+      </div>
+
+      {/* Content */}
+      <main className="max-w-4xl mx-auto px-4 py-6 relative z-10">
+        {activeTab === 'users' && (
+          <div className="space-y-4">
+            <div className="p-4 rounded border border-cyan-500/30 bg-cyan-500/10">
+              <div className="flex items-center gap-2 mb-2">
+                <Users className="w-5 h-5 text-cyan-400" />
+                <h2 className="text-lg font-display text-cyan-400 uppercase">Utenti Registrati</h2>
+              </div>
+              <p className="text-sm text-gray-400">
+                Email: <span className="text-cyan-300 font-mono">{user.email}</span>
+              </p>
+              <p className="text-sm text-gray-400 mt-2">
+                Ruolo: <span className="text-cyan-300 font-bold">ADMIN</span>
+              </p>
+              <p className="text-xs text-gray-500 mt-3">
+                ℹ️ La lista utenti è temporaneamente in sviluppo. I dati verranno caricati da Supabase.
+              </p>
+            </div>
+          </div>
+        )}
+
+        {activeTab === 'tracking' && (
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <MapPin className="w-5 h-5 text-fuchsia-400" />
+                <h2 className="text-lg font-display text-fuchsia-400 uppercase">GPS Tracking</h2>
+              </div>
+              <div className="flex gap-2">
+                <Button
+                  size="sm"
+                  onClick={handleRefresh}
+                  disabled={refreshing}
+                  variant="outline"
+                  className="text-cyan-400 border-cyan-500/50"
+                >
+                  <RefreshCw className={`w-4 h-4 mr-2 ${refreshing ? 'animate-spin' : ''}`} />
+                  Aggiorna
+                </Button>
+                {storedLocations.length > 0 && (
+                  <Button
+                    size="sm"
+                    onClick={clearLocations}
+                    variant="destructive"
+                  >
+                    Cancella
+                  </Button>
+                )}
+              </div>
+            </div>
+
+            {storedLocations.length === 0 ? (
+              <div className="p-6 rounded border border-gray-700 bg-gray-900/50 text-center">
+                <MapPin className="w-12 h-12 text-gray-600 mx-auto mb-3 opacity-50" />
+                <p className="text-gray-400 mb-2">Nessuna posizione GPS registrata</p>
+                <p className="text-xs text-gray-500">
+                  Le posizioni verranno salvate quando gli utenti loggati autorizzano il tracking GPS.
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-2 max-h-96 overflow-y-auto">
+                {storedLocations.map((loc, idx) => (
+                  <div
+                    key={idx}
+                    className="p-4 rounded border border-fuchsia-500/30 bg-fuchsia-500/5 hover:bg-fuchsia-500/10 transition"
+                  >
+                    <div className="flex items-start justify-between mb-2">
+                      <div>
+                        <p className="text-sm font-mono text-cyan-400">
+                          📍 {loc.latitude.toFixed(6)}, {loc.longitude.toFixed(6)}
+                        </p>
+                        <p className="text-xs text-gray-400 mt-1">
+                          Precisione: ±{loc.accuracy ? Math.round(loc.accuracy) : '?'} m
+                        </p>
+                      </div>
+                      <p className="text-xs text-gray-500">
+                        {new Date(loc.timestamp).toLocaleTimeString('it-IT')}
+                      </p>
+                    </div>
+                    <a
+                      href={`https://maps.google.com/?q=${loc.latitude},${loc.longitude}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-xs text-fuchsia-400 hover:text-fuchsia-300 inline-block"
+                    >
+                      📎 Apri in Google Maps
+                    </a>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <div className="p-4 rounded border border-blue-500/30 bg-blue-500/10 text-blue-400 text-sm space-y-2">
+              <p>📌 <strong>Come attivare il tracking:</strong></p>
+              <ol className="list-decimal list-inside space-y-1 text-xs">
+                <li>Fai login/registrazione su /auth</li>
+                <li>Autorizza il permesso GPS nella schermata dei permessi</li>
+                <li>La posizione sarà salvata in localStorage</li>
+                <li>Torna qui per visualizzare il tracking</li>
+              </ol>
+            </div>
+          </div>
+        )}
+      </main>
+    </div>
+  );
+}
