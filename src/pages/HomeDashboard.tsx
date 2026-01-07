@@ -10,6 +10,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
 import { Swords, Shield } from 'lucide-react';
+import { supabase } from '@/lib/supabaseClient';
 
 const buildingAssets: Record<string, string> = {
   sawmill: '/assets/segheria.png',
@@ -139,9 +140,30 @@ const HomeDashboard = () => {
     })));
   }, []);
 
-  const toggleGoblinAttack = () => {
-    console.log('Toggle goblin attack:', !isGoblinAttackActive);
-    setIsGoblinAttackActive(!isGoblinAttackActive);
+  const toggleGoblinAttack = async () => {
+    try {
+      console.log('Toggling goblin attack:', !isGoblinAttackActive);
+      
+      // Upsert evento goblin nel database
+      const newStatus = !isGoblinAttackActive;
+      const { error } = await supabase
+        .from('events')
+        .upsert({
+          id: 'goblin_attack', // ID fisso per il singolo evento goblin
+          event_type: 'goblin_attack',
+          is_active: newStatus,
+          updated_at: new Date().toISOString()
+        }, { onConflict: 'id' });
+
+      if (error) {
+        console.error('Error toggling goblin attack:', error);
+      } else {
+        setIsGoblinAttackActive(newStatus);
+        console.log('✅ Goblin attack toggled in Supabase');
+      }
+    } catch (error) {
+      console.error('Error in toggleGoblinAttack:', error);
+    }
   };
 
   useEffect(() => {
@@ -155,8 +177,37 @@ const HomeDashboard = () => {
       .catch((err) => console.error('Errore risorse:', err));
   }, []);
 
-  // Mock: non facciamo il check dagli endpoint API (non existono più)
-  // Usiamo solo lo stato locale gestito dal toggle button
+  useEffect(() => {
+    // Subscribe to goblin attack event changes in Supabase
+    const subscription = supabase
+      .from('events')
+      .on('*', (payload) => {
+        console.log('Real-time event update:', payload);
+        if (payload.new?.event_type === 'goblin_attack') {
+          setIsGoblinAttackActive(payload.new.is_active);
+        }
+      })
+      .subscribe();
+
+    // Load initial state
+    const loadGoblinEvent = async () => {
+      const { data, error } = await supabase
+        .from('events')
+        .select('is_active')
+        .eq('event_type', 'goblin_attack')
+        .single();
+
+      if (!error && data) {
+        setIsGoblinAttackActive(data.is_active);
+      }
+    };
+
+    loadGoblinEvent();
+
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, []);
 
   // Quando attacco goblin si attiva, mostra l'alert
   useEffect(() => {

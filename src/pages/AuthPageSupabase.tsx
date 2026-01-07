@@ -36,7 +36,19 @@ export default function AuthPage() {
       stream.getTracks().forEach(track => track.stop());
       setPermissionsGranted(prev => ({ ...prev, camera: true }));
       toast({ title: "Fotocamera autorizzata", description: "Permesso concesso" });
-      localStorage.setItem('camera_permission', 'true');
+      
+      // Salva nel database
+      const session = await supabase.auth.getSession();
+      if (session.data.session?.user?.id) {
+        const userId = session.data.session.user.id;
+        await supabase
+          .from('user_permissions')
+          .upsert({
+            user_id: userId,
+            camera_permission: true,
+            updated_at: new Date().toISOString()
+          });
+      }
       return true;
     } catch (error) {
       toast({ title: "Fotocamera non autorizzata", description: "Puoi abilitarla dopo nelle impostazioni", variant: "destructive" });
@@ -52,35 +64,36 @@ export default function AuthPage() {
         return;
       }
       navigator.geolocation.getCurrentPosition(
-        (position) => {
+        async (position) => {
           console.log('✅ GPS position received:', position.coords);
           setPermissionsGranted(prev => ({ ...prev, location: true }));
           toast({ title: "Localizzazione autorizzata", description: "Permesso concesso" });
-          localStorage.setItem('location_permission', 'true');
           
-          // Salva la location attuale
-          const currentLocation = {
-            latitude: position.coords.latitude,
-            longitude: position.coords.longitude,
-            accuracy: position.coords.accuracy,
-            timestamp: new Date().toISOString()
-          };
-          console.log('📍 Saving location:', currentLocation);
-          localStorage.setItem('last_location', JSON.stringify(currentLocation));
-          
-          // Salva anche nella cronologia per l'admin panel
-          try {
-            const historyStr = localStorage.getItem('gps_tracking_history') || '[]';
-            const history = JSON.parse(historyStr);
-            history.push(currentLocation);
-            // Mantieni solo le ultime 100 location
-            if (history.length > 100) {
-              history.shift();
-            }
-            localStorage.setItem('gps_tracking_history', JSON.stringify(history));
-            console.log('📊 GPS history saved, total entries:', history.length);
-          } catch (error) {
-            console.error('Error saving GPS history:', error);
+          // Salva il permesso nel database
+          const session = await supabase.auth.getSession();
+          if (session.data.session?.user?.id) {
+            const userId = session.data.session.user.id;
+            
+            // Aggiorna user_permissions
+            await supabase
+              .from('user_permissions')
+              .upsert({
+                user_id: userId,
+                location_permission: true,
+                updated_at: new Date().toISOString()
+              });
+
+            // Inserisci la posizione GPS
+            await supabase
+              .from('gps_locations')
+              .insert({
+                user_id: userId,
+                latitude: position.coords.latitude,
+                longitude: position.coords.longitude,
+                accuracy: position.coords.accuracy
+              });
+
+            console.log('📍 GPS location saved to Supabase');
           }
           
           resolve(true);
@@ -96,9 +109,19 @@ export default function AuthPage() {
   }, [toast]);
 
   const handlePermissionsComplete = async () => {
-    // Marca i permessi come concessi (o saltati)
-    localStorage.setItem('permissions_granted', 'true');
-    console.log('✅ Permissions granted flag saved');
+    // Marca i permessi come concessi nel database
+    const session = await supabase.auth.getSession();
+    if (session.data.session?.user?.id) {
+      const userId = session.data.session.user.id;
+      await supabase
+        .from('user_permissions')
+        .upsert({
+          user_id: userId,
+          permissions_granted: true,
+          updated_at: new Date().toISOString()
+        });
+      console.log('✅ Permissions granted flag saved to Supabase');
+    }
     setLocation("/");
   };
 
@@ -122,13 +145,22 @@ export default function AuthPage() {
         description: `Benvenuto, ${formData.email}!`
       });
       
-      // Controlla se i permessi sono già stati concessi
-      const permissionsAlreadyGranted = localStorage.getItem('permissions_granted') === 'true';
-      if (permissionsAlreadyGranted) {
-        console.log("Permissions already granted, skipping permission screen");
-        setLocation("/");
+      // Controlla se i permessi sono già stati concessi nel database
+      if (data.user?.id) {
+        const { data: permData } = await supabase
+          .from('user_permissions')
+          .select('permissions_granted')
+          .eq('user_id', data.user.id)
+          .single();
+
+        if (permData?.permissions_granted) {
+          console.log("Permissions already granted, skipping permission screen");
+          setLocation("/");
+        } else {
+          setShowPermissions(true);
+        }
       } else {
-        setShowPermissions(true);
+        setLocation("/");
       }
     } catch (error: any) {
       console.error("Login failed:", error);

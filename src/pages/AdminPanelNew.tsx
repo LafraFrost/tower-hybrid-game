@@ -4,12 +4,19 @@ import { Redirect, useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { ChevronLeft, Shield, Users, MapPin, RefreshCw, AlertCircle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { supabase } from "@/lib/supabaseClient";
 
-interface StoredLocation {
+interface GPSLocation {
+  id: string;
+  user_id: string;
   latitude: number;
   longitude: number;
-  accuracy: number;
+  accuracy: number | null;
   timestamp: string;
+  created_at: string;
+}
+
+interface StoredLocation extends GPSLocation {
   email?: string;
   name?: string;
 }
@@ -23,53 +30,74 @@ export default function AdminPanel() {
   const [refreshing, setRefreshing] = useState(false);
   const [debugInfo, setDebugInfo] = useState<string>('');
 
-  // Carica le location dal localStorage
+  // Carica le location da Supabase con real-time
   useEffect(() => {
     loadLocations();
+    
+    // Subscribe to real-time changes
+    const subscription = supabase
+      .from('gps_locations')
+      .on('*', (payload) => {
+        console.log('Real-time update:', payload);
+        loadLocations(); // Ricarica quando c'è un cambiamento
+      })
+      .subscribe();
+
+    return () => {
+      subscription.unsubscribe();
+    };
   }, []);
 
-  const loadLocations = () => {
+  const loadLocations = async () => {
     try {
-      console.log('Loading locations from localStorage...');
-      const locationStr = localStorage.getItem('gps_tracking_history');
-      console.log('Raw localStorage value:', locationStr);
-      
-      if (locationStr) {
-        const locations = JSON.parse(locationStr);
-        console.log('Parsed locations:', locations);
-        setStoredLocations(Array.isArray(locations) ? locations : []);
-        setDebugInfo(`Caricate ${locations.length} location`);
-      } else {
-        setDebugInfo('Nessuna data in gps_tracking_history');
-        setStoredLocations([]);
+      console.log('Loading GPS locations from Supabase...');
+      const { data, error } = await supabase
+        .from('gps_locations')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        console.error('Error loading locations:', error);
+        setDebugInfo(`Errore: ${error.message}`);
+        return;
       }
+
+      console.log('Loaded locations:', data);
+      setStoredLocations(data as StoredLocation[]);
+      setDebugInfo(`Caricate ${data?.length || 0} location dal database`);
     } catch (error) {
       console.error('Error loading locations:', error);
       setDebugInfo(`Errore: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   };
 
-  const handleRefresh = () => {
+  const handleRefresh = async () => {
     setRefreshing(true);
-    setTimeout(() => {
-      loadLocations();
-      setRefreshing(false);
+    try {
+      await loadLocations();
       toast({
         title: "Aggiornato",
         description: "Posizioni ricaricate"
       });
-    }, 500);
+    } finally {
+      setRefreshing(false);
+    }
   };
 
   const clearLocations = () => {
     if (window.confirm('Sei sicuro di voler eliminare la cronologia GPS?')) {
-      localStorage.removeItem('gps_tracking_history');
-      setStoredLocations([]);
-      setDebugInfo('Cronologia eliminata');
-      toast({
-        title: "Cronologia eliminata",
-        description: "I dati GPS sono stati cancellati"
-      });
+      supabase
+        .from('gps_locations')
+        .delete()
+        .gte('created_at', '1900-01-01')
+        .then(() => {
+          setStoredLocations([]);
+          setDebugInfo('Cronologia eliminata');
+          toast({
+            title: "Cronologia eliminata",
+            description: "I dati GPS sono stati cancellati"
+          });
+        });
     }
   };
 
@@ -219,9 +247,9 @@ export default function AdminPanel() {
                 <div className="text-xs text-gray-400 mb-3">
                   Totale: <span className="text-cyan-400 font-bold">{storedLocations.length}</span> location
                 </div>
-                {storedLocations.map((loc, idx) => (
+                {storedLocations.map((loc) => (
                   <div
-                    key={idx}
+                    key={loc.id}
                     className="p-4 rounded border border-fuchsia-500/30 bg-fuchsia-500/5 hover:bg-fuchsia-500/10 transition"
                   >
                     <div className="flex items-start justify-between mb-2">
@@ -234,7 +262,7 @@ export default function AdminPanel() {
                         </p>
                       </div>
                       <p className="text-xs text-gray-500 whitespace-nowrap ml-2">
-                        {new Date(loc.timestamp).toLocaleTimeString('it-IT')}
+                        {new Date(loc.created_at).toLocaleTimeString('it-IT')}
                       </p>
                     </div>
                     <a
