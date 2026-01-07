@@ -143,24 +143,39 @@ const HomeDashboard = () => {
   const toggleGoblinAttack = async () => {
     try {
       console.log('Toggling goblin attack:', !isGoblinAttackActive);
-      
-      // Upsert evento goblin nel database
-      const newStatus = !isGoblinAttackActive;
-      const { error } = await supabase
-        .from('events')
-        .upsert({
-          id: 'goblin_attack', // ID fisso per il singolo evento goblin
-          event_type: 'goblin_attack',
-          is_active: newStatus,
-          updated_at: new Date().toISOString()
-        }, { onConflict: 'id' });
 
-      if (error) {
-        console.error('Error toggling goblin attack:', error);
-      } else {
-        setIsGoblinAttackActive(newStatus);
-        console.log('✅ Goblin attack toggled in Supabase');
+      const newStatus = !isGoblinAttackActive;
+
+      // Aggiorna se esiste, altrimenti inserisci
+      const { data: existing, error: selErr } = await supabase
+        .from('events')
+        .select('id')
+        .eq('event_type', 'goblin_attack')
+        .limit(1);
+
+      if (selErr) {
+        console.error('Error selecting goblin event:', selErr);
       }
+
+      if (existing && existing.length > 0) {
+        const { error: updErr } = await supabase
+          .from('events')
+          .update({ is_active: newStatus, updated_at: new Date().toISOString() })
+          .eq('id', existing[0].id);
+        if (updErr) {
+          console.error('Error updating goblin event:', updErr);
+        }
+      } else {
+        const { error: insErr } = await supabase
+          .from('events')
+          .insert({ event_type: 'goblin_attack', is_active: newStatus, triggered_at: new Date().toISOString() });
+        if (insErr) {
+          console.error('Error inserting goblin event:', insErr);
+        }
+      }
+
+      setIsGoblinAttackActive(newStatus);
+      console.log('✅ Goblin attack status updated in Supabase');
     } catch (error) {
       console.error('Error in toggleGoblinAttack:', error);
     }
@@ -178,13 +193,13 @@ const HomeDashboard = () => {
   }, []);
 
   useEffect(() => {
-    // Subscribe to goblin attack event changes in Supabase
-    const subscription = supabase
-      .from('events')
-      .on('*', (payload) => {
+    // Subscribe to goblin attack event changes in Supabase (v2 realtime API)
+    const channel = supabase
+      .channel('events-changes')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'events' }, (payload: any) => {
         console.log('Real-time event update:', payload);
-        if (payload.new?.event_type === 'goblin_attack') {
-          setIsGoblinAttackActive(payload.new.is_active);
+        if (payload?.new?.event_type === 'goblin_attack') {
+          setIsGoblinAttackActive(!!payload.new.is_active);
         }
       })
       .subscribe();
@@ -195,17 +210,17 @@ const HomeDashboard = () => {
         .from('events')
         .select('is_active')
         .eq('event_type', 'goblin_attack')
-        .single();
+        .maybeSingle();
 
       if (!error && data) {
-        setIsGoblinAttackActive(data.is_active);
+        setIsGoblinAttackActive(!!data.is_active);
       }
     };
 
     loadGoblinEvent();
 
     return () => {
-      subscription.unsubscribe();
+      supabase.removeChannel(channel);
     };
   }, []);
 
