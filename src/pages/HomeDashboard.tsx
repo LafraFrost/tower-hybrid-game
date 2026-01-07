@@ -160,6 +160,8 @@ const HomeDashboard = () => {
   const mapRef = useRef<HTMLDivElement>(null);
 
   const loadLocations = React.useCallback(async () => {
+    console.log('🔍 Loading locations from database...');
+    
     // Locations con coordinate salvate (martelli per non costruiti, edifici dopo pagamento)
     const baseLocations = [
       { id: 1, name: 'Magazzino', buildingType: 'warehouse', coordinateX: 35.0, coordinateY: 42.0, is_built: false, requiredWood: 100, requiredStone: 50, requiredGold: 20 },
@@ -177,16 +179,20 @@ const HomeDashboard = () => {
         .select('*')
         .order('id');
 
+      console.log('📊 Supabase query result:', { data, error, dataLength: data?.length });
+
       if (!error && data && data.length > 0) {
-        console.log('✅ Locations loaded from Supabase:', data.length);
+        console.log('✅ Locations loaded from Supabase:', data);
         setLocations(
           data.map((loc: any) => {
             const buildingType = normalizeBuildingType(loc);
             const cxRaw = loc.coordinateX ?? loc.coordinate_x ?? 50;
             const cyRaw = loc.coordinateY ?? loc.coordinate_y ?? 50;
+            const isBuilt = Boolean(loc.is_built);
+            console.log(`  - ${loc.name}: is_built=${loc.is_built} -> ${isBuilt}`);
             return {
               ...loc,
-              is_built: Boolean(loc.is_built),
+              is_built: isBuilt,
               buildingType,
               coordinateX: Number(cxRaw),
               coordinateY: Number(cyRaw),
@@ -194,11 +200,11 @@ const HomeDashboard = () => {
           })
         );
       } else {
-        console.log('⚠️ No data in Supabase, using default locations');
+        console.warn('⚠️ No data in Supabase, using default locations. Error:', error);
         setLocations(baseLocations);
       }
     } catch (err) {
-      console.error('Error loading from Supabase, using defaults:', err);
+      console.error('❌ Error loading from Supabase, using defaults:', err);
       setLocations(baseLocations);
     }
   }, []);
