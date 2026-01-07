@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 
 type NodeType = "Combat" | "Event" | "Resource" | "Rest" | "Boss" | "Start";
 
@@ -69,6 +69,8 @@ const MAP_HEIGHT = 640;
 
 const nodeMap = new Map(nodes.map((n) => [n.id, n] as const));
 
+const STORAGE_KEY = "soloMapProgress_v1";
+
 const TacticalScreen = () => {
   const [currentNode, setCurrentNode] = useState<number>(1);
   const [visited, setVisited] = useState<Set<number>>(new Set([1]));
@@ -76,6 +78,32 @@ const TacticalScreen = () => {
   const [battleNode, setBattleNode] = useState<Node | null>(null);
   const [battle, setBattle] = useState<BattleState | null>(null);
   const [bossDefeated, setBossDefeated] = useState(false);
+
+  // Load progress on mount
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (!raw) return;
+      const saved = JSON.parse(raw);
+      if (typeof saved.currentNode === "number") setCurrentNode(saved.currentNode);
+      if (Array.isArray(saved.visited)) setVisited(new Set<number>(saved.visited));
+      if (Array.isArray(saved.logs)) setLogs(saved.logs);
+      if (typeof saved.bossDefeated === "boolean") setBossDefeated(saved.bossDefeated);
+    } catch {}
+  }, []);
+
+  // Persist progress on change
+  useEffect(() => {
+    try {
+      const data = {
+        currentNode,
+        visited: Array.from(visited),
+        logs,
+        bossDefeated,
+      };
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+    } catch {}
+  }, [currentNode, visited, logs, bossDefeated]);
 
   const neighbors = useMemo(() => {
     const node = nodeMap.get(currentNode);
