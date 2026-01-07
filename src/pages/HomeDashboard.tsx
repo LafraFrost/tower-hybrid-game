@@ -608,13 +608,12 @@ const HomeDashboard = () => {
               transform: 'translate(-50%, -50%)',
               cursor: draggingId === loc.id ? 'grabbing' : 'grab',
               zIndex: selectedLocation === loc.id ? 1000 : draggingId === loc.id ? 100 : 10,
-              display: 'flex',
+              display: loc.buildingType === 'mine' && !isGoblinAttackActive ? 'none' : 'flex',
               flexDirection: 'column-reverse', // etichetta sopra, immagine sotto
               alignItems: 'center',
-              // Se attacco goblin attivo: disabilita solo gli edifici non-defense COSTRUITI. La miniera rimane nascosta finché non arriva l'evento
-              // Se NON è attacco goblin: nascondi la miniera
-              opacity: loc.buildingType === 'mine' && !isGoblinAttackActive ? 0 : isGoblinAttackActive && loc.buildingType !== 'defense' && loc.is_built ? 0.5 : 1,
-              pointerEvents: loc.buildingType === 'mine' && !isGoblinAttackActive ? 'none' : isGoblinAttackActive && loc.buildingType !== 'defense' && loc.is_built ? 'none' : 'auto',
+              // Se attacco goblin attivo: disabilita solo gli edifici non-defense COSTRUITI
+              opacity: isGoblinAttackActive && loc.buildingType !== 'defense' && loc.is_built ? 0.5 : 1,
+              pointerEvents: isGoblinAttackActive && loc.buildingType !== 'defense' && loc.is_built ? 'none' : 'auto',
             }}
           >
             <img
