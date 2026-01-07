@@ -556,7 +556,7 @@ const HomeDashboard = () => {
                 right: 0,
                 width: '100%',
                 textAlign: 'center',
-                transform: 'translateY(calc(-50% - 180px))',
+                transform: 'translateY(calc(-50% - 260px))',
                 zIndex: 4000,
                 pointerEvents: 'none',
               }}
