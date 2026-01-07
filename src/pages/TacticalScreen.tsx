@@ -1,6 +1,7 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useMemo, useState } from "react";
 import { useHero } from "@/context/HeroContext";
 import { loadSoloProgress, saveSoloProgress } from "@/lib/progressService";
+import { useLocation } from "wouter";
 
 type NodeType = "Combat" | "Event" | "Resource" | "Rest" | "Boss" | "Start";
 
@@ -75,6 +76,7 @@ const STORAGE_KEY = "soloMapProgress_v1";
 
 const TacticalScreen = () => {
   const { selectedHero } = useHero();
+  const [, setLocation] = useLocation();
   const [currentNode, setCurrentNode] = useState<number>(1);
   const [visited, setVisited] = useState<Set<number>>(new Set([1]));
   const [logs, setLogs] = useState<string[]>(["Partenza: scegli un ramo."]);
@@ -409,11 +411,37 @@ const TacticalScreen = () => {
               Almeno tre bivi con ricongiungimenti. Se sconfiggi il Boss, sblocco phygital su Supabase.
             </p>
           </div>
-          {bossDefeated && (
-            <span className="px-3 py-2 rounded-full bg-emerald-500/20 text-emerald-300 text-sm border border-emerald-400/40">
-              Boss sconfitto • Progress salvato
-            </span>
-          )}
+          <div className="flex flex-col gap-2">
+            {bossDefeated && (
+              <span className="px-3 py-2 rounded-full bg-emerald-500/20 text-emerald-300 text-sm border border-emerald-400/40 text-center">
+                Boss sconfitto • Progress salvato
+              </span>
+            )}
+            <button
+              onClick={() => setLocation('/home')}
+              style={{
+                padding: '8px 16px',
+                backgroundColor: '#1e40af',
+                color: 'white',
+                border: '1px solid #3b82f6',
+                borderRadius: '6px',
+                cursor: 'pointer',
+                fontSize: '13px',
+                fontWeight: 'bold',
+                transition: 'all 0.2s',
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.backgroundColor = '#1d3a8a';
+                e.currentTarget.style.boxShadow = '0 0 10px rgba(59, 130, 246, 0.6)';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.backgroundColor = '#1e40af';
+                e.currentTarget.style.boxShadow = 'none';
+              }}
+            >
+              🏠 Torna a Casa
+            </button>
+          </div>
         </div>
 
         <div className="relative h-[640px] overflow-hidden" style={{
