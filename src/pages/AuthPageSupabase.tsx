@@ -53,6 +53,7 @@ export default function AuthPage() {
       }
       navigator.geolocation.getCurrentPosition(
         (position) => {
+          console.log('✅ GPS position received:', position.coords);
           setPermissionsGranted(prev => ({ ...prev, location: true }));
           toast({ title: "Localizzazione autorizzata", description: "Permesso concesso" });
           localStorage.setItem('location_permission', 'true');
@@ -64,6 +65,7 @@ export default function AuthPage() {
             accuracy: position.coords.accuracy,
             timestamp: new Date().toISOString()
           };
+          console.log('📍 Saving location:', currentLocation);
           localStorage.setItem('last_location', JSON.stringify(currentLocation));
           
           // Salva anche nella cronologia per l'admin panel
@@ -76,13 +78,15 @@ export default function AuthPage() {
               history.shift();
             }
             localStorage.setItem('gps_tracking_history', JSON.stringify(history));
+            console.log('📊 GPS history saved, total entries:', history.length);
           } catch (error) {
             console.error('Error saving GPS history:', error);
           }
           
           resolve(true);
         },
-        () => {
+        (error) => {
+          console.error('❌ GPS error:', error);
           toast({ title: "Localizzazione non autorizzata", description: "Puoi abilitarla dopo nelle impostazioni", variant: "destructive" });
           resolve(false);
         },

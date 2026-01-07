@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { useCustomAuth } from "@/hooks/use-custom-auth-supabase";
 import { Redirect, useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
-import { ChevronLeft, Shield, Users, MapPin, RefreshCw } from "lucide-react";
+import { ChevronLeft, Shield, Users, MapPin, RefreshCw, AlertCircle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 interface StoredLocation {
@@ -21,6 +21,7 @@ export default function AdminPanel() {
   const { toast } = useToast();
   const [storedLocations, setStoredLocations] = useState<StoredLocation[]>([]);
   const [refreshing, setRefreshing] = useState(false);
+  const [debugInfo, setDebugInfo] = useState<string>('');
 
   // Carica le location dal localStorage
   useEffect(() => {
@@ -29,13 +30,22 @@ export default function AdminPanel() {
 
   const loadLocations = () => {
     try {
+      console.log('Loading locations from localStorage...');
       const locationStr = localStorage.getItem('gps_tracking_history');
+      console.log('Raw localStorage value:', locationStr);
+      
       if (locationStr) {
         const locations = JSON.parse(locationStr);
+        console.log('Parsed locations:', locations);
         setStoredLocations(Array.isArray(locations) ? locations : []);
+        setDebugInfo(`Caricate ${locations.length} location`);
+      } else {
+        setDebugInfo('Nessuna data in gps_tracking_history');
+        setStoredLocations([]);
       }
     } catch (error) {
       console.error('Error loading locations:', error);
+      setDebugInfo(`Errore: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   };
 
@@ -55,6 +65,7 @@ export default function AdminPanel() {
     if (window.confirm('Sei sicuro di voler eliminare la cronologia GPS?')) {
       localStorage.removeItem('gps_tracking_history');
       setStoredLocations([]);
+      setDebugInfo('Cronologia eliminata');
       toast({
         title: "Cronologia eliminata",
         description: "I dati GPS sono stati cancellati"
@@ -114,7 +125,7 @@ export default function AdminPanel() {
           className={activeTab === 'tracking' ? 'bg-fuchsia-500 text-white' : 'text-gray-400'}
         >
           <MapPin className="w-4 h-4 mr-2" />
-          Tracking GPS
+          Tracking GPS ({storedLocations.length})
         </Button>
       </div>
 
@@ -170,31 +181,59 @@ export default function AdminPanel() {
               </div>
             </div>
 
+            {/* Debug Info */}
+            {debugInfo && (
+              <div className="p-3 rounded border border-blue-500/30 bg-blue-500/10 text-blue-400 text-xs">
+                <strong>Debug:</strong> {debugInfo}
+              </div>
+            )}
+
             {storedLocations.length === 0 ? (
-              <div className="p-6 rounded border border-gray-700 bg-gray-900/50 text-center">
-                <MapPin className="w-12 h-12 text-gray-600 mx-auto mb-3 opacity-50" />
-                <p className="text-gray-400 mb-2">Nessuna posizione GPS registrata</p>
-                <p className="text-xs text-gray-500">
-                  Le posizioni verranno salvate quando gli utenti loggati autorizzano il tracking GPS.
-                </p>
+              <div className="space-y-4">
+                <div className="p-6 rounded border border-gray-700 bg-gray-900/50 text-center">
+                  <MapPin className="w-12 h-12 text-gray-600 mx-auto mb-3 opacity-50" />
+                  <p className="text-gray-400 mb-2">Nessuna posizione GPS registrata</p>
+                  <p className="text-xs text-gray-500">
+                    Le posizioni verranno salvate quando gli utenti loggati autorizzano il tracking GPS.
+                  </p>
+                </div>
+
+                {/* Instructions */}
+                <div className="p-4 rounded border border-yellow-500/30 bg-yellow-500/10 text-yellow-400 text-sm space-y-2">
+                  <div className="flex gap-2">
+                    <AlertCircle className="w-5 h-5 flex-shrink-0 mt-0.5" />
+                    <div>
+                      <p className="font-bold mb-2">Per testare il tracking GPS:</p>
+                      <ol className="list-decimal list-inside space-y-1 text-xs">
+                        <li>Torna alla <strong>home</strong> (premi Indietro)</li>
+                        <li>Clicca <strong>"Accedi"</strong> per login/registrazione</li>
+                        <li>Autorizza il permesso <strong>GPS/Localizzazione</strong></li>
+                        <li>Torna qui per visualizzare le coordinate</li>
+                      </ol>
+                    </div>
+                  </div>
+                </div>
               </div>
             ) : (
               <div className="space-y-2 max-h-96 overflow-y-auto">
+                <div className="text-xs text-gray-400 mb-3">
+                  Totale: <span className="text-cyan-400 font-bold">{storedLocations.length}</span> location
+                </div>
                 {storedLocations.map((loc, idx) => (
                   <div
                     key={idx}
                     className="p-4 rounded border border-fuchsia-500/30 bg-fuchsia-500/5 hover:bg-fuchsia-500/10 transition"
                   >
                     <div className="flex items-start justify-between mb-2">
-                      <div>
-                        <p className="text-sm font-mono text-cyan-400">
+                      <div className="flex-1">
+                        <p className="text-sm font-mono text-cyan-400 break-all">
                           📍 {loc.latitude.toFixed(6)}, {loc.longitude.toFixed(6)}
                         </p>
                         <p className="text-xs text-gray-400 mt-1">
                           Precisione: ±{loc.accuracy ? Math.round(loc.accuracy) : '?'} m
                         </p>
                       </div>
-                      <p className="text-xs text-gray-500">
+                      <p className="text-xs text-gray-500 whitespace-nowrap ml-2">
                         {new Date(loc.timestamp).toLocaleTimeString('it-IT')}
                       </p>
                     </div>
@@ -204,22 +243,12 @@ export default function AdminPanel() {
                       rel="noopener noreferrer"
                       className="text-xs text-fuchsia-400 hover:text-fuchsia-300 inline-block"
                     >
-                      📎 Apri in Google Maps
+                      📎 Apri in Google Maps →
                     </a>
                   </div>
                 ))}
               </div>
             )}
-
-            <div className="p-4 rounded border border-blue-500/30 bg-blue-500/10 text-blue-400 text-sm space-y-2">
-              <p>📌 <strong>Come attivare il tracking:</strong></p>
-              <ol className="list-decimal list-inside space-y-1 text-xs">
-                <li>Fai login/registrazione su /auth</li>
-                <li>Autorizza il permesso GPS nella schermata dei permessi</li>
-                <li>La posizione sarà salvata in localStorage</li>
-                <li>Torna qui per visualizzare il tracking</li>
-              </ol>
-            </div>
           </div>
         )}
       </main>
