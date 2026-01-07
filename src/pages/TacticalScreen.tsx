@@ -206,6 +206,10 @@ const TacticalScreen = () => {
     const reachable = neighbors.includes(node.id) || node.id === currentNode || visited.has(node.id);
     if (!reachable) return;
 
+    // Se già visitato, non attivare più gli effetti
+    const alreadyVisited = visited.has(node.id);
+    if (alreadyVisited) return;
+
     if (node.type === "Combat" || node.type === "Boss") {
       startBattle(node);
       return;
