@@ -104,17 +104,6 @@ const DevTriggerButton = ({ isActive, onToggle }: { isActive: boolean; onToggle:
 );
 
 const HomeDashboard = () => {
-  return (
-    <div style={{ position: 'fixed', inset: 0 as any, display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(0,0,0,0.85)', color: 'white', zIndex: 99999 }}>
-      <div style={{ textAlign: 'center', maxWidth: 600 }}>
-        <h1 style={{ fontSize: '32px', marginBottom: '12px' }}>Versione disattivata</h1>
-        <p style={{ fontSize: '14px', opacity: 0.9 }}>
-          Stai visualizzando la pagina dalla versione minuscola.
-          Per vedere l'altra variante, abilita/importa la versione con H maiuscola.
-        </p>
-      </div>
-    </div>
-  );
   const [locations, setLocations] = useState<any[]>([]);
   const [draggingId, setDraggingId] = useState<number | null>(null);
   const [selectedLocation, setSelectedLocation] = useState<number | null>(null);
@@ -126,12 +115,24 @@ const HomeDashboard = () => {
   const loadLocations = React.useCallback(() => {
     fetch('/api/user-locations', { credentials: 'include' })
       .then((res) => res.json())
-      .then((data) => setLocations((data || []).map((loc: any) => ({
-        ...loc,
-        is_built: Boolean(loc.is_built),
-        buildingType: normalizeBuildingType(loc),
-      }))))
-      .catch((err) => console.error('Errore:', err));
+      .then((data) => setLocations((data || []).map((loc: any) => {
+        const buildingType = normalizeBuildingType(loc);
+        const cxRaw = loc.coordinateX ?? (loc.x != null ? (loc.x / 1024 * 100) : undefined);
+        const cyRaw = loc.coordinateY ?? (loc.y != null ? (loc.y / 1024 * 100) : undefined);
+        const clamp = (v: any) => {
+          const n = Number(v);
+          if (!isFinite(n)) return 50;
+          return Math.max(0, Math.min(100, n));
+        };
+        return {
+          ...loc,
+          is_built: Boolean(loc.is_built),
+          buildingType,
+          coordinateX: clamp(cxRaw),
+          coordinateY: clamp(cyRaw),
+        };
+      })))
+      .catch((err) => console.error('Errore caricamento posizioni:', err));
   }, []);
 
   const handleDevToggleGoblinAttack = async () => {
@@ -341,24 +342,18 @@ const HomeDashboard = () => {
       )}
 
       {/* Messaggio temporaneo attacco goblin */}
-        {isGoblinAttackActive && (
-          <div
-            style={{
-              position: 'absolute',
-              top: '50%',
-              left: 0,
-              right: 0,
-              width: '100%',
-              textAlign: 'center',
-              transform: 'translateY(-50%)',
-              zIndex: 2000,
-              pointerEvents: 'none',
-            }}
-          >
-            fontSize: '16px',
-            fontWeight: 'bold',
+      {isGoblinAttackActive && goblinAttackMessage && (
+        <div
+          style={{
+            position: 'absolute',
+            top: '50%',
+            left: 0,
+            right: 0,
+            width: '100%',
+            textAlign: 'center',
+            transform: 'translateY(-50%)',
             zIndex: 2500,
-            animation: 'fadeInOut 3s ease-in-out',
+            pointerEvents: 'none',
           }}
         >
           <style>{`
@@ -367,7 +362,9 @@ const HomeDashboard = () => {
               10%, 90% { opacity: 1; }
             }
           `}</style>
-          {goblinAttackMessage}
+          <span style={{ fontSize: '16px', fontWeight: 'bold', animation: 'fadeInOut 3s ease-in-out' }}>
+            {goblinAttackMessage}
+          </span>
         </div>
       )}
 

@@ -126,23 +126,44 @@ const HomeDashboard = () => {
   const [showGoblinAlert, setShowGoblinAlert] = useState(false);
   const mapRef = useRef<HTMLDivElement>(null);
 
-  const loadLocations = React.useCallback(() => {
-    // Mock locations per testing (senza server)
-    const mockLocations = [
-      { id: 1, name: 'Segheria', buildingType: 'sawmill', is_built: true, x: 200, y: 200 },
-      { id: 2, name: 'Miniera', buildingType: 'mine', is_built: true, x: 800, y: 200 },
-      { id: 3, name: 'Magazzino', buildingType: 'warehouse', is_built: true, x: 500, y: 500 },
-    ];
-    // Converte coordinate pixel in percentuali per il container 1024x1024
-    setLocations(
-      mockLocations.map((loc: any) => ({
-        ...loc,
-        is_built: Boolean(loc.is_built),
-        buildingType: normalizeBuildingType(loc),
-        coordinateX: (loc.x / 1024) * 100,
-        coordinateY: (loc.y / 1024) * 100,
-      }))
-    );
+  const loadLocations = React.useCallback(async () => {
+    try {
+      // Load locations from Supabase
+      const { data, error } = await supabase
+        .from('user_locations')
+        .select('*')
+        .order('id');
+
+      if (error) {
+        console.error('Error loading locations:', error);
+        return;
+      }
+
+      console.log('Locations loaded from DB:', data);
+
+      setLocations(
+        (data || []).map((loc: any) => {
+          const buildingType = normalizeBuildingType(loc);
+          // Map coordinateX/Y from x/y if missing, scale by 1024 to percentage, clamp
+          const cxRaw = loc.coordinateX ?? loc.coordinate_x ?? (loc.x != null ? (loc.x / 1024 * 100) : undefined);
+          const cyRaw = loc.coordinateY ?? loc.coordinate_y ?? (loc.y != null ? (loc.y / 1024 * 100) : undefined);
+          const clamp = (v: any) => {
+            const n = Number(v);
+            if (!isFinite(n)) return 50;
+            return Math.max(0, Math.min(100, n));
+          };
+          return {
+            ...loc,
+            is_built: Boolean(loc.is_built),
+            buildingType,
+            coordinateX: clamp(cxRaw),
+            coordinateY: clamp(cyRaw),
+          };
+        })
+      );
+    } catch (err) {
+      console.error('Error loading locations:', err);
+    }
   }, []);
 
   const toggleGoblinAttack = async () => {
@@ -339,17 +360,18 @@ const HomeDashboard = () => {
 
   const savePosition = async (id: number, x: number, y: number) => {
     try {
-      const response = await fetch('/api/update-location-position', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          id,
-          coordinateX: parseFloat(x.toFixed(2)),
-          coordinateY: parseFloat(y.toFixed(2)),
-        }),
-      });
+      // Update in Supabase user_locations
+      const { error } = await supabase
+        .from('user_locations')
+        .update({
+          coordinate_x: parseFloat(x.toFixed(2)),
+          coordinate_y: parseFloat(y.toFixed(2)),
+        })
+        .eq('id', id);
 
-      if (response.ok) {
+      if (error) {
+        console.error('❌ Errore nel salvataggio posizione:', error);
+      } else {
         console.log(`✅ Posizione salvata per ${id}`);
       }
     } catch (err) {
@@ -365,7 +387,7 @@ const HomeDashboard = () => {
       <DevTriggerButton isActive={isGoblinAttackActive} onToggle={toggleGoblinAttack} />
       <ResourceBar resources={resources} />
 
-      {/* Overlay Attacco Goblin (sposta la scritta in alto, rimuove il bottone) */}
+      {/* Overlay Attacco Goblin (solo background pulsante, NO testo qui) */}
       {isGoblinAttackActive && (
         <div
           style={{
@@ -375,12 +397,9 @@ const HomeDashboard = () => {
             width: '100vw',
             height: '100vh',
             backgroundColor: 'rgba(255, 0, 0, 0.4)',
-            display: 'flex',
-            flexDirection: 'column',
-            justifyContent: 'center',
-            alignItems: 'center',
             zIndex: 3000,
             animation: 'pulse 1s infinite',
+            pointerEvents: 'none',
           }}
         >
           <style>{`
@@ -389,29 +408,6 @@ const HomeDashboard = () => {
               50% { background-color: rgba(255, 0, 0, 0.6); }
             }
           `}</style>
-          <style>{`
-            @keyframes shake {
-              0%, 100% { transform: translateX(0); }
-              25% { transform: translateX(-10px); }
-              75% { transform: translateX(10px); }
-            }
-          `}</style>
-          <h1
-            style={{
-              position: 'absolute',
-              top: '20px',
-              left: '50%',
-              transform: 'translateX(-50%)',
-              color: 'red',
-              fontSize: '48px',
-              fontWeight: 'bold',
-              textShadow: '0 0 20px rgba(255, 0, 0, 0.8)',
-              animation: 'shake 0.5s infinite',
-              margin: 0,
-            }}
-          >
-            ⚠️ ATTACCO GOBLIN IN CORSO! ⚠️
-          </h1>
         </div>
       )}
 
@@ -479,6 +475,47 @@ const HomeDashboard = () => {
         style={{ position: 'relative', width: '1024px', height: '1024px', userSelect: 'none', pointerEvents: isGoblinAttackActive ? 'none' : 'auto' }}
       >
         <img src="/assets/casa.jpg" style={{ width: '100%', height: '100%', pointerEvents: 'none' }} alt="Mappa" />
+
+        {/* Scritta attacco goblin centrata nella mappa */}
+        {isGoblinAttackActive && (
+          <>
+            <style>{`
+              @keyframes wobble {
+                0%, 100% { transform: translateX(0) }
+                25% { transform: translateX(-8px) }
+                75% { transform: translateX(8px) }
+              }
+            `}</style>
+            <div
+              style={{
+                position: 'absolute',
+                top: '50%',
+                left: 0,
+                right: 0,
+                width: '100%',
+                textAlign: 'center',
+                transform: 'translateY(-50%)',
+                zIndex: 4000,
+                pointerEvents: 'none',
+              }}
+            >
+              <span
+                style={{
+                  display: 'inline-block',
+                  whiteSpace: 'nowrap',
+                  color: 'red',
+                  fontSize: '48px',
+                  fontWeight: 'bold',
+                  textShadow: '0 0 20px rgba(255, 0, 0, 0.8)',
+                  margin: 0,
+                  animation: 'wobble 0.8s infinite',
+                }}
+              >
+                ⚠️ ATTACCO GOBLIN IN CORSO! ⚠️
+              </span>
+            </div>
+          </>
+        )}
 
         {locations.map((loc) => (
           <div
