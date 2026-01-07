@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { useHero } from "@/context/HeroContext";
 import { loadSoloProgress, saveSoloProgress } from "@/lib/progressService";
 import { useLocation } from "wouter";
