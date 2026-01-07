@@ -1,4 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
+import { useHero } from "@/context/HeroContext";
+import { loadSoloProgress, saveSoloProgress } from "@/lib/progressService";
 
 type NodeType = "Combat" | "Event" | "Resource" | "Rest" | "Boss" | "Start";
 
@@ -72,6 +74,7 @@ const nodeMap = new Map(nodes.map((n) => [n.id, n] as const));
 const STORAGE_KEY = "soloMapProgress_v1";
 
 const TacticalScreen = () => {
+  const { selectedHero } = useHero();
   const [currentNode, setCurrentNode] = useState<number>(1);
   const [visited, setVisited] = useState<Set<number>>(new Set([1]));
   const [logs, setLogs] = useState<string[]>(["Partenza: scegli un ramo."]);
@@ -79,20 +82,35 @@ const TacticalScreen = () => {
   const [battle, setBattle] = useState<BattleState | null>(null);
   const [bossDefeated, setBossDefeated] = useState(false);
 
-  // Load progress on mount
+  // Load progress on mount (DB first, localStorage fallback)
   useEffect(() => {
     try {
-      const raw = localStorage.getItem(STORAGE_KEY);
-      if (!raw) return;
-      const saved = JSON.parse(raw);
-      if (typeof saved.currentNode === "number") setCurrentNode(saved.currentNode);
-      if (Array.isArray(saved.visited)) setVisited(new Set<number>(saved.visited));
-      if (Array.isArray(saved.logs)) setLogs(saved.logs);
-      if (typeof saved.bossDefeated === "boolean") setBossDefeated(saved.bossDefeated);
+      (async () => {
+        let loaded = false;
+        if (selectedHero) {
+          const db = await loadSoloProgress(selectedHero);
+          if (db) {
+            setCurrentNode(db.currentNode);
+            setVisited(new Set<number>(db.visited || [1]));
+            setLogs(db.logs?.length ? db.logs : ["Progresso caricato."]);
+            setBossDefeated(!!db.bossDefeated);
+            loaded = true;
+          }
+        }
+        if (!loaded) {
+          const raw = localStorage.getItem(STORAGE_KEY);
+          if (!raw) return;
+          const saved = JSON.parse(raw);
+          if (typeof saved.currentNode === "number") setCurrentNode(saved.currentNode);
+          if (Array.isArray(saved.visited)) setVisited(new Set<number>(saved.visited));
+          if (Array.isArray(saved.logs)) setLogs(saved.logs);
+          if (typeof saved.bossDefeated === "boolean") setBossDefeated(saved.bossDefeated);
+        }
+      })();
     } catch {}
-  }, []);
+  }, [selectedHero]);
 
-  // Persist progress on change
+  // Persist progress on change (both DB and local)
   useEffect(() => {
     try {
       const data = {
@@ -102,6 +120,10 @@ const TacticalScreen = () => {
         bossDefeated,
       };
       localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+      if (selectedHero) {
+        // Best-effort save to DB; heroClass unknown here, store placeholder
+        saveSoloProgress(selectedHero, 'Unknown', data);
+      }
     } catch {}
   }, [currentNode, visited, logs, bossDefeated]);
 
