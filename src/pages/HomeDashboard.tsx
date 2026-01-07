@@ -207,14 +207,34 @@ const HomeDashboard = () => {
 
     // Try to load from Supabase if available, otherwise use baseLocations
     try {
-      const { data, error } = await supabase
+      // First, check if RLS is blocking by testing the query
+      const { data, error, count } = await supabase
         .from('game_locations')
-        .select('*')
+        .select('*', { count: 'exact' })
         .order('id');
 
-      console.log('📊 Supabase query result:', { data, error, dataLength: data?.length });
+      console.log('📊 Supabase query result:', { 
+        data, 
+        error, 
+        dataLength: data?.length, 
+        count,
+        errorDetails: error ? {
+          message: error.message,
+          details: error.details,
+          hint: error.hint,
+          code: error.code
+        } : null
+      });
 
-      if (!error && data && data.length > 0) {
+      if (error) {
+        console.error('❌ Supabase error:', error);
+        console.warn('⚠️ POSSIBILE PROBLEMA RLS: Vai su Supabase Dashboard → Authentication → Policies e disabilita RLS per game_locations o aggiungi policy SELECT per anon');
+        alert(`Errore caricamento database: ${error.message}\n\nControlla le Row Level Security policies su Supabase!`);
+        setLocations(baseLocations);
+        return;
+      }
+
+      if (data && data.length > 0) {
         console.log('✅ Locations loaded from Supabase:', data);
         setLocations(
           data.map((loc: any) => {
