@@ -330,17 +330,20 @@ const HomeDashboard = () => {
       )}
 
       {/* Messaggio temporaneo attacco goblin */}
-      {goblinAttackMessage && (
-        <div
-          style={{
-            position: 'fixed',
-            top: '100px',
-            left: '50%',
-            transform: 'translateX(-50%)',
-            backgroundColor: 'rgba(255, 0, 0, 0.9)',
-            color: 'white',
-            padding: '15px 30px',
-            borderRadius: '8px',
+        {isGoblinAttackActive && (
+          <div
+            style={{
+              position: 'absolute',
+              top: '50%',
+              left: 0,
+              right: 0,
+              width: '100%',
+              textAlign: 'center',
+              transform: 'translateY(-50%)',
+              zIndex: 2000,
+              pointerEvents: 'none',
+            }}
+          >
             fontSize: '16px',
             fontWeight: 'bold',
             zIndex: 2500,
@@ -369,8 +372,11 @@ const HomeDashboard = () => {
             style={{
               position: 'absolute',
               top: '50%',
-              left: '50%',
-              transform: 'translate(-50%, -50%)',
+              left: 0,
+              right: 0,
+              width: '100%',
+              textAlign: 'center',
+              transform: 'translateY(-50%)',
               zIndex: 2000,
               pointerEvents: 'none',
             }}
