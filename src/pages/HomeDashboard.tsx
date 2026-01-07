@@ -611,9 +611,10 @@ const HomeDashboard = () => {
               display: 'flex',
               flexDirection: 'column-reverse', // etichetta sopra, immagine sotto
               alignItems: 'center',
-              // Se attacco goblin attivo: disabilita solo gli edifici non-defense COSTRUITI. I martelli rimangono visibili
-              opacity: isGoblinAttackActive && loc.buildingType !== 'defense' && loc.is_built ? 0.5 : 1,
-              pointerEvents: isGoblinAttackActive && loc.buildingType !== 'defense' && loc.is_built ? 'none' : 'auto',
+              // Se attacco goblin attivo: disabilita solo gli edifici non-defense COSTRUITI. La miniera rimane nascosta finché non arriva l'evento
+              // Se NON è attacco goblin: nascondi la miniera
+              opacity: loc.buildingType === 'mine' && !isGoblinAttackActive ? 0 : isGoblinAttackActive && loc.buildingType !== 'defense' && loc.is_built ? 0.5 : 1,
+              pointerEvents: loc.buildingType === 'mine' && !isGoblinAttackActive ? 'none' : isGoblinAttackActive && loc.buildingType !== 'defense' && loc.is_built ? 'none' : 'auto',
             }}
           >
             <img
@@ -652,7 +653,7 @@ const HomeDashboard = () => {
               {loc.name}
             </span>
 
-            {selectedLocation === loc.id && !loc.is_built && (
+            {selectedLocation === loc.id && !loc.is_built && !(loc.buildingType === 'mine' && !isGoblinAttackActive) && (
               <div
                 style={{
                   position: 'absolute',
