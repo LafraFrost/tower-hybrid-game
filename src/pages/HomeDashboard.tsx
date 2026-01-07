@@ -115,71 +115,7 @@ const DevTriggerButton = ({ isActive, onToggle }: { isActive: boolean; onToggle:
   </button>
 );
 
-const RefreshButton = ({ onRefresh }: { onRefresh: () => void }) => (
-  <button 
-    onClick={onRefresh}
-    style={{
-      position: 'absolute',
-      top: '20px',
-      right: '160px',
-      opacity: 0.9,
-      fontSize: '12px',
-      padding: '8px 12px',
-      backgroundColor: '#0ea5e9',
-      color: 'white',
-      border: '2px solid #0369a1',
-      borderRadius: '4px',
-      cursor: 'pointer',
-      zIndex: 9999,
-      transition: 'all 0.3s',
-      fontWeight: 'bold',
-      pointerEvents: 'auto',
-    }}
-    onMouseEnter={(e) => {
-      e.currentTarget.style.opacity = '1';
-      e.currentTarget.style.boxShadow = '0 0 15px rgba(14, 165, 233, 0.8)';
-    }}
-    onMouseLeave={(e) => {
-      e.currentTarget.style.opacity = '0.9';
-      e.currentTarget.style.boxShadow = 'none';
-    }}
-  >
-    🔄 RICARICA DB
-  </button>
-);
 
-const SeedButton = ({ onSeed }: { onSeed: () => void }) => (
-  <button 
-    onClick={onSeed}
-    style={{
-      position: 'absolute',
-      top: '20px',
-      right: '310px',
-      opacity: 0.9,
-      fontSize: '12px',
-      padding: '8px 12px',
-      backgroundColor: '#10b981',
-      color: 'white',
-      border: '2px solid #059669',
-      borderRadius: '4px',
-      cursor: 'pointer',
-      zIndex: 9999,
-      transition: 'all 0.3s',
-      fontWeight: 'bold',
-      pointerEvents: 'auto',
-    }}
-    onMouseEnter={(e) => {
-      e.currentTarget.style.opacity = '1';
-      e.currentTarget.style.boxShadow = '0 0 15px rgba(16, 185, 129, 0.8)';
-    }}
-    onMouseLeave={(e) => {
-      e.currentTarget.style.opacity = '0.9';
-      e.currentTarget.style.boxShadow = 'none';
-    }}
-  >
-    🌱 SEED DB
-  </button>
-);
 
 const HomeDashboard = () => {
   const [, setLocation] = useLocation();
@@ -261,50 +197,6 @@ const HomeDashboard = () => {
       setLocations(baseLocations);
     }
   }, []);
-
-  const seedDatabase = React.useCallback(async () => {
-    try {
-      console.log('🌱 Seeding database with initial locations...');
-      
-      const initialLocations = [
-        { name: 'Magazzino', building_type: 'warehouse', coordinate_x: 35.0, coordinate_y: 42.0, is_built: false, user_id: 1 },
-        { name: 'Orto', building_type: 'farm', coordinate_x: 40.0, coordinate_y: 48.0, is_built: true, user_id: 1 },
-        { name: 'Fucina', building_type: 'blacksmith', coordinate_x: 30.0, coordinate_y: 55.0, is_built: false, user_id: 1 },
-        { name: 'Ponte', building_type: 'bridge', coordinate_x: 60.0, coordinate_y: 50.0, is_built: false, user_id: 1 },
-        { name: 'Miniera', building_type: 'mine', coordinate_x: 52.0, coordinate_y: 38.0, is_built: false, user_id: 1 },
-        { name: 'Segheria', building_type: 'sawmill', coordinate_x: 20.0, coordinate_y: 45.0, is_built: false, user_id: 1 },
-      ];
-
-      // Delete existing data first
-      const { error: deleteError } = await supabase
-        .from('game_locations')
-        .delete()
-        .gte('id', 0);
-
-      if (deleteError) {
-        console.warn('Delete warning (might be empty):', deleteError);
-      }
-
-      // Insert new data
-      const { data, error } = await supabase
-        .from('game_locations')
-        .insert(initialLocations)
-        .select();
-
-      if (error) {
-        console.error('❌ Seed error:', error);
-        alert(`Errore seed database: ${error.message}`);
-      } else {
-        console.log('✅ Database seeded successfully:', data);
-        alert('✅ Database popolato con successo! Clicca RICARICA DB per vedere gli edifici.');
-        // Reload locations
-        loadLocations();
-      }
-    } catch (err) {
-      console.error('❌ Seed exception:', err);
-      alert('Errore durante il seed del database');
-    }
-  }, [loadLocations]);
 
   const toggleGoblinAttack = async () => {
     try {
@@ -551,8 +443,6 @@ const HomeDashboard = () => {
       style={{ width: '100vw', height: '100vh', display: 'flex', justifyContent: 'center', alignItems: 'center', backgroundColor: '#1a1a1a', position: 'relative' }}
     >
       <MenuButton />
-      <SeedButton onSeed={seedDatabase} />
-      <RefreshButton onRefresh={loadLocations} />
       <DevTriggerButton isActive={isGoblinAttackActive} onToggle={toggleGoblinAttack} />
       <ResourceBar resources={resources} />
 
