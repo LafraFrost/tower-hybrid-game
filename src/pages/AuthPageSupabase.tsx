@@ -330,21 +330,14 @@ export default function AuthPage() {
               </div>
             </div>
 
-            <div className="flex gap-2 pt-2">
+            <div className="flex gap-2 pt-4">
               <Button
-                variant="ghost"
-                className="flex-1 text-gray-400"
-                onClick={handlePermissionsComplete}
-              >
-                Salta
-              </Button>
-              <Button
-                className="flex-1 bg-gradient-to-r from-cyan-500 to-fuchsia-500 text-white"
+                className="w-full bg-gradient-to-r from-cyan-500 to-fuchsia-500 text-white hover:from-cyan-600 hover:to-fuchsia-600"
                 onClick={handlePermissionsComplete}
                 disabled={isLoading}
               >
                 <Check className="w-4 h-4 mr-2" />
-                Continua
+                Continua al Gioco
               </Button>
             </div>
           </div>
