@@ -115,6 +115,39 @@ const DevTriggerButton = ({ isActive, onToggle }: { isActive: boolean; onToggle:
   </button>
 );
 
+const RefreshButton = ({ onRefresh }: { onRefresh: () => void }) => (
+  <button 
+    onClick={onRefresh}
+    style={{
+      position: 'absolute',
+      top: '20px',
+      right: '160px',
+      opacity: 0.9,
+      fontSize: '12px',
+      padding: '8px 12px',
+      backgroundColor: '#0ea5e9',
+      color: 'white',
+      border: '2px solid #0369a1',
+      borderRadius: '4px',
+      cursor: 'pointer',
+      zIndex: 9999,
+      transition: 'all 0.3s',
+      fontWeight: 'bold',
+      pointerEvents: 'auto',
+    }}
+    onMouseEnter={(e) => {
+      e.currentTarget.style.opacity = '1';
+      e.currentTarget.style.boxShadow = '0 0 15px rgba(14, 165, 233, 0.8)';
+    }}
+    onMouseLeave={(e) => {
+      e.currentTarget.style.opacity = '0.9';
+      e.currentTarget.style.boxShadow = 'none';
+    }}
+  >
+    🔄 RICARICA DB
+  </button>
+);
+
 const HomeDashboard = () => {
   const [, setLocation] = useLocation();
   const [locations, setLocations] = useState<any[]>([]);
@@ -213,6 +246,20 @@ const HomeDashboard = () => {
 
   useEffect(() => {
     loadLocations();
+
+    // Subscribe to game_locations changes in Supabase (realtime)
+    const locationsChannel = supabase
+      .channel('game-locations-changes')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'game_locations' }, (payload: any) => {
+        console.log('Real-time location update:', payload);
+        // Reload all locations on any change
+        loadLocations();
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(locationsChannel);
+    };
   }, [loadLocations]);
 
   useEffect(() => {
@@ -401,6 +448,7 @@ const HomeDashboard = () => {
       style={{ width: '100vw', height: '100vh', display: 'flex', justifyContent: 'center', alignItems: 'center', backgroundColor: '#1a1a1a', position: 'relative' }}
     >
       <MenuButton />
+      <RefreshButton onRefresh={loadLocations} />
       <DevTriggerButton isActive={isGoblinAttackActive} onToggle={toggleGoblinAttack} />
       <ResourceBar resources={resources} />
 
