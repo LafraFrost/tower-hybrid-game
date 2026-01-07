@@ -126,33 +126,22 @@ const HomeDashboard = () => {
   const mapRef = useRef<HTMLDivElement>(null);
 
   const loadLocations = React.useCallback(() => {
-    fetch('/api/user-locations', { credentials: 'include' })
-      .then((res) => res.json())
-      .then((data) => setLocations((data || []).map((loc: any) => ({
-        ...loc,
-        is_built: Boolean(loc.is_built),
-        buildingType: normalizeBuildingType(loc),
-      }))))
-      .catch((err) => console.error('Errore:', err));
+    // Mock locations per testing (senza server)
+    const mockLocations = [
+      { id: 1, name: 'Segheria', buildingType: 'sawmill', is_built: true, x: 200, y: 200 },
+      { id: 2, name: 'Miniera', buildingType: 'mine', is_built: true, x: 800, y: 200 },
+      { id: 3, name: 'Magazzino', buildingType: 'warehouse', is_built: true, x: 500, y: 500 },
+    ];
+    setLocations(mockLocations.map((loc: any) => ({
+      ...loc,
+      is_built: Boolean(loc.is_built),
+      buildingType: normalizeBuildingType(loc),
+    })));
   }, []);
 
-  const handleDevToggleGoblinAttack = async () => {
-    try {
-      const newState = !isGoblinAttackActive;
-      const res = await fetch('/api/dev/trigger-goblin-attack', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ isActive: newState })
-      });
-
-      if (res.ok) {
-        const data = await res.json();
-        setIsGoblinAttackActive(data.isActive ?? newState);
-      }
-    } catch (err) {
-      console.error('Errore nel toggle attacco goblin:', err);
-    }
+  const toggleGoblinAttack = () => {
+    console.log('Toggle goblin attack:', !isGoblinAttackActive);
+    setIsGoblinAttackActive(!isGoblinAttackActive);
   };
 
   useEffect(() => {
@@ -166,25 +155,8 @@ const HomeDashboard = () => {
       .catch((err) => console.error('Errore risorse:', err));
   }, []);
 
-  // Controlla lo stato dell'attacco goblin ogni 10 secondi
-  useEffect(() => {
-    const checkGoblinStatus = () => {
-      fetch('/api/event-status', { credentials: 'include' })
-        .then((res) => res.json())
-        .then((data) => {
-          setIsGoblinAttackActive(data.isGoblinAttackActive || false);
-        })
-        .catch((err) => console.error('Errore verificare evento:', err));
-    };
-
-    // Controlla subito al mount
-    checkGoblinStatus();
-
-    // Poi ogni 10 secondi
-    const interval = setInterval(checkGoblinStatus, 10000);
-
-    return () => clearInterval(interval);
-  }, []);
+  // Mock: non facciamo il check dagli endpoint API (non existono più)
+  // Usiamo solo lo stato locale gestito dal toggle button
 
   // Quando attacco goblin si attiva, mostra l'alert
   useEffect(() => {
