@@ -9,7 +9,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
-import { Swords, Shield } from 'lucide-react';
+import { Swords } from 'lucide-react';
 import { supabase } from '@/lib/supabaseClient';
 
 const buildingAssets: Record<string, string> = {
@@ -365,7 +365,7 @@ const HomeDashboard = () => {
       <DevTriggerButton isActive={isGoblinAttackActive} onToggle={toggleGoblinAttack} />
       <ResourceBar resources={resources} />
 
-      {/* Overlay Attacco Goblin */}
+      {/* Overlay Attacco Goblin (sposta la scritta in alto, rimuove il bottone) */}
       {isGoblinAttackActive && (
         <div
           style={{
@@ -389,18 +389,6 @@ const HomeDashboard = () => {
               50% { background-color: rgba(255, 0, 0, 0.6); }
             }
           `}</style>
-          <h1
-            style={{
-              color: 'red',
-              fontSize: '60px',
-              fontWeight: 'bold',
-              textShadow: '0 0 20px rgba(255, 0, 0, 0.8)',
-              margin: '0 0 40px 0',
-              animation: 'shake 0.5s infinite',
-            }}
-          >
-            ⚠️ ATTACCO GOBLIN IN CORSO! ⚠️
-          </h1>
           <style>{`
             @keyframes shake {
               0%, 100% { transform: translateX(0); }
@@ -408,33 +396,22 @@ const HomeDashboard = () => {
               75% { transform: translateX(10px); }
             }
           `}</style>
-          <button
-            onClick={() => {
-              window.location.href = '/tactical-map';
-            }}
+          <h1
             style={{
-              padding: '15px 40px',
-              fontSize: '20px',
+              position: 'absolute',
+              top: '20px',
+              left: '50%',
+              transform: 'translateX(-50%)',
+              color: 'red',
+              fontSize: '48px',
               fontWeight: 'bold',
-              backgroundColor: '#ff6b00',
-              color: 'white',
-              border: '3px solid #ffaa00',
-              borderRadius: '10px',
-              cursor: 'pointer',
-              boxShadow: '0 4px 20px rgba(255, 100, 0, 0.8)',
-              transition: 'all 0.2s',
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.backgroundColor = '#ff8800';
-              e.currentTarget.style.boxShadow = '0 6px 30px rgba(255, 100, 0, 1)';
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.backgroundColor = '#ff6b00';
-              e.currentTarget.style.boxShadow = '0 4px 20px rgba(255, 100, 0, 0.8)';
+              textShadow: '0 0 20px rgba(255, 0, 0, 0.8)',
+              animation: 'shake 0.5s infinite',
+              margin: 0,
             }}
           >
-            ⚔️ ENTRA IN BATTAGLIA ⚔️
-          </button>
+            ⚠️ ATTACCO GOBLIN IN CORSO! ⚠️
+          </h1>
         </div>
       )}
 
@@ -456,16 +433,14 @@ const HomeDashboard = () => {
               Clicca "DIFENDI" per entrare in battaglia subito!
             </p>
           </AlertDialogDescription>
-          <div className="flex gap-3 pt-4">
-            <AlertDialogCancel className="flex-1 bg-gray-700 hover:bg-gray-600 text-white">
-              Dopo
-            </AlertDialogCancel>
+          <div className="pt-4">
             <Button
               onClick={handleDefend}
-              className="flex-1 bg-red-600 hover:bg-red-700 text-white font-bold text-lg"
+              className="w-full bg-red-600 hover:bg-red-700 text-white font-black text-2xl py-6 flex items-center justify-center gap-4"
             >
-              <Shield className="w-5 h-5 mr-2" />
-              DIFENDI!
+              <Swords className="w-7 h-7" />
+              DIFENDI
+              <Swords className="w-7 h-7" />
             </Button>
           </div>
         </AlertDialogContent>
