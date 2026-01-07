@@ -133,11 +133,16 @@ const HomeDashboard = () => {
       { id: 2, name: 'Miniera', buildingType: 'mine', is_built: true, x: 800, y: 200 },
       { id: 3, name: 'Magazzino', buildingType: 'warehouse', is_built: true, x: 500, y: 500 },
     ];
-    setLocations(mockLocations.map((loc: any) => ({
-      ...loc,
-      is_built: Boolean(loc.is_built),
-      buildingType: normalizeBuildingType(loc),
-    })));
+    // Converte coordinate pixel in percentuali per il container 1024x1024
+    setLocations(
+      mockLocations.map((loc: any) => ({
+        ...loc,
+        is_built: Boolean(loc.is_built),
+        buildingType: normalizeBuildingType(loc),
+        coordinateX: (loc.x / 1024) * 100,
+        coordinateY: (loc.y / 1024) * 100,
+      }))
+    );
   }, []);
 
   const toggleGoblinAttack = async () => {
@@ -357,7 +362,7 @@ const HomeDashboard = () => {
       style={{ width: '100vw', height: '100vh', display: 'flex', justifyContent: 'center', alignItems: 'center', backgroundColor: '#1a1a1a', position: 'relative' }}
     >
       <MenuButton />
-      <DevTriggerButton isActive={isGoblinAttackActive} onToggle={handleDevToggleGoblinAttack} />
+      <DevTriggerButton isActive={isGoblinAttackActive} onToggle={toggleGoblinAttack} />
       <ResourceBar resources={resources} />
 
       {/* Overlay Attacco Goblin */}
