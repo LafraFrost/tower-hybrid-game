@@ -1,4 +1,15 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { useLocation } from 'wouter';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+import { Button } from '@/components/ui/button';
+import { Swords, Shield } from 'lucide-react';
 
 const buildingAssets: Record<string, string> = {
   sawmill: '/assets/segheria.png',
@@ -104,12 +115,14 @@ const DevTriggerButton = ({ isActive, onToggle }: { isActive: boolean; onToggle:
 );
 
 const HomeDashboard = () => {
+  const [, setLocation] = useLocation();
   const [locations, setLocations] = useState<any[]>([]);
   const [draggingId, setDraggingId] = useState<number | null>(null);
   const [selectedLocation, setSelectedLocation] = useState<number | null>(null);
   const [resources, setResources] = useState<any>({ wood: 0, stone: 0, gold: 0 });
   const [isGoblinAttackActive, setIsGoblinAttackActive] = useState(false);
   const [goblinAttackMessage, setGoblinAttackMessage] = useState('');
+  const [showGoblinAlert, setShowGoblinAlert] = useState(false);
   const mapRef = useRef<HTMLDivElement>(null);
 
   const loadLocations = React.useCallback(() => {
@@ -172,6 +185,19 @@ const HomeDashboard = () => {
 
     return () => clearInterval(interval);
   }, []);
+
+  // Quando attacco goblin si attiva, mostra l'alert
+  useEffect(() => {
+    if (isGoblinAttackActive) {
+      console.log('🚨 Goblin attack activated! Showing alert dialog');
+      setShowGoblinAlert(true);
+    }
+  }, [isGoblinAttackActive]);
+
+  const handleDefend = () => {
+    setShowGoblinAlert(false);
+    setLocation("/solo");
+  };
 
   const handleMouseDown = (_id: number) => {
     return; // dragging disattivato per test build
@@ -368,6 +394,39 @@ const HomeDashboard = () => {
           </button>
         </div>
       )}
+
+      {/* AlertDialog per attacco goblin */}
+      <AlertDialog open={showGoblinAlert} onOpenChange={setShowGoblinAlert}>
+        <AlertDialogContent className="bg-gradient-to-b from-red-950 to-black border-2 border-red-500 max-w-md">
+          <AlertDialogTitle className="text-2xl text-red-400 flex items-center gap-2">
+            <Swords className="w-6 h-6" />
+            ⚠️ ATTACCO GOBLIN! ⚠️
+          </AlertDialogTitle>
+          <AlertDialogDescription className="text-white text-base space-y-3">
+            <p className="font-bold text-lg">
+              I Goblin stanno attaccando il vostro insediamento!
+            </p>
+            <p>
+              Una orda di goblin selvaggi ha invaso il territorio. Dovete difendere immediatamente il vostro avamposto!
+            </p>
+            <p className="text-yellow-300 font-bold">
+              Clicca "DIFENDI" per entrare in battaglia subito!
+            </p>
+          </AlertDialogDescription>
+          <div className="flex gap-3 pt-4">
+            <AlertDialogCancel className="flex-1 bg-gray-700 hover:bg-gray-600 text-white">
+              Dopo
+            </AlertDialogCancel>
+            <Button
+              onClick={handleDefend}
+              className="flex-1 bg-red-600 hover:bg-red-700 text-white font-bold text-lg"
+            >
+              <Shield className="w-5 h-5 mr-2" />
+              DIFENDI!
+            </Button>
+          </div>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Messaggio temporaneo attacco goblin */}
       {goblinAttackMessage && (
