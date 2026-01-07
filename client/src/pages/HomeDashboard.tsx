@@ -104,6 +104,17 @@ const DevTriggerButton = ({ isActive, onToggle }: { isActive: boolean; onToggle:
 );
 
 const HomeDashboard = () => {
+  return (
+    <div style={{ position: 'fixed', inset: 0 as any, display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(0,0,0,0.85)', color: 'white', zIndex: 99999 }}>
+      <div style={{ textAlign: 'center', maxWidth: 600 }}>
+        <h1 style={{ fontSize: '32px', marginBottom: '12px' }}>Versione disattivata</h1>
+        <p style={{ fontSize: '14px', opacity: 0.9 }}>
+          Stai visualizzando la pagina dalla versione minuscola.
+          Per vedere l'altra variante, abilita/importa la versione con H maiuscola.
+        </p>
+      </div>
+    </div>
+  );
   const [locations, setLocations] = useState<any[]>([]);
   const [draggingId, setDraggingId] = useState<number | null>(null);
   const [selectedLocation, setSelectedLocation] = useState<number | null>(null);
