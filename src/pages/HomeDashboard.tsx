@@ -271,8 +271,8 @@ const HomeDashboard = () => {
     setLocation("/solo");
   };
 
-  const handleMouseDown = (_id: number) => {
-    return; // dragging disattivato per test build
+  const handleMouseDown = (id: number) => {
+    setDraggingId(id);
   };
 
   const getEffectDescription = (type: string) => {
@@ -377,9 +377,9 @@ const HomeDashboard = () => {
 
   const savePosition = async (id: number, x: number, y: number) => {
     try {
-      // Update in Supabase user_locations
+      // Update in Supabase game_locations
       const { error } = await supabase
-        .from('user_locations')
+        .from('game_locations')
         .update({
           coordinate_x: parseFloat(x.toFixed(2)),
           coordinate_y: parseFloat(y.toFixed(2)),
@@ -387,12 +387,12 @@ const HomeDashboard = () => {
         .eq('id', id);
 
       if (error) {
-        console.error('❌ Errore nel salvataggio posizione:', error);
+        console.warn('⚠️ Supabase save failed (using local state only):', error);
       } else {
-        console.log(`✅ Posizione salvata per ${id}`);
+        console.log(`✅ Posizione salvata per edificio ${id}: (${x.toFixed(2)}%, ${y.toFixed(2)}%)`);
       }
     } catch (err) {
-      console.error('❌ Errore nel salvataggio posizione:', err);
+      console.warn('⚠️ Salvataggio remoto non disponibile, posizione salvata solo localmente');
     }
   };
 
@@ -489,7 +489,10 @@ const HomeDashboard = () => {
 
       <div
         ref={mapRef}
-        style={{ position: 'relative', width: '1024px', height: '1024px', userSelect: 'none', pointerEvents: isGoblinAttackActive ? 'none' : 'auto' }}
+        onMouseMove={handleMouseMove}
+        onMouseUp={handleMouseUp}
+        onMouseLeave={handleMouseUp}
+        style={{ position: 'relative', width: '1024px', height: '1024px', userSelect: 'none', pointerEvents: isGoblinAttackActive ? 'none' : 'auto', cursor: draggingId !== null ? 'grabbing' : 'default' }}
       >
         <img src="/assets/casa.jpg" style={{ width: '100%', height: '100%', pointerEvents: 'none' }} alt="Mappa" />
 
@@ -554,7 +557,7 @@ const HomeDashboard = () => {
               top: `${loc.coordinateY}%`,
               left: `${loc.coordinateX}%`,
               transform: 'translate(-50%, -50%)',
-              cursor: 'pointer',
+              cursor: draggingId === loc.id ? 'grabbing' : 'grab',
               zIndex: selectedLocation === loc.id ? 1000 : draggingId === loc.id ? 100 : 10,
               display: 'flex',
               flexDirection: 'column-reverse', // etichetta sopra, immagine sotto
