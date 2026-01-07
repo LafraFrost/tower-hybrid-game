@@ -9,6 +9,7 @@ import { NeonButton } from "@/components/NeonButton";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { loadProfile, saveProfile } from "@/lib/progressService";
 
 interface ShopCard {
   id: string;
@@ -53,6 +54,19 @@ export default function ShopScreen() {
     }
   }, [sessionQuery.data]);
 
+  // Fallback: load from Supabase profile if server session missing
+  useEffect(() => {
+    (async () => {
+      if (!sessionQuery.data && playerState?.heroName) {
+        const prof = await loadProfile(playerState.heroName);
+        if (prof) {
+          setCredits(prof.credits);
+          setPurchasedCards(prof.deckCards);
+        }
+      }
+    })();
+  }, [sessionQuery.data, playerState?.heroName]);
+
   // Generate 3 random cards from BASE_CARDS with descriptions
   const shopCards = useMemo((): ShopCard[] => {
     const cardDescriptions: Record<string, string> = {
@@ -85,9 +99,16 @@ export default function ShopScreen() {
       const res = await apiRequest('POST', `/api/hero-session/${sessionData.id}/purchase`, { cardId, cost });
       return await res.json() as PurchaseResult;
     },
-    onSuccess: (data) => {
+    onSuccess: async (data) => {
       setCredits(data.newCredits);
       setPurchasedCards(data.deckCards);
+      // Sync to Supabase profile as persistent deck/credits
+      if (playerState?.heroName) {
+        await saveProfile(playerState.heroName, playerState.heroClass, {
+          credits: data.newCredits,
+          deckCards: data.deckCards,
+        });
+      }
       toast({
         title: 'Carta acquistata!',
         description: `Aggiunta al tuo mazzo. Crediti rimanenti: ${data.newCredits}`,

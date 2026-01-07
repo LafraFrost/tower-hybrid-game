@@ -1,3 +1,14 @@
+-- Add solo_progress JSONB and ensure persistent fields exist on user_profiles
+ALTER TABLE IF EXISTS user_profiles
+  ADD COLUMN IF NOT EXISTS solo_progress JSONB DEFAULT '{}'::jsonb;
+
+-- Ensure persistent_credits and persistent_deck_cards exist
+ALTER TABLE IF EXISTS user_profiles
+  ADD COLUMN IF NOT EXISTS persistent_credits INTEGER DEFAULT 100;
+
+ALTER TABLE IF EXISTS user_profiles
+  ADD COLUMN IF NOT EXISTS persistent_deck_cards JSONB DEFAULT '[]'::jsonb;
+
 -- ============================================
 -- SUPABASE TABLE MIGRATIONS
 -- ============================================

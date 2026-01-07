@@ -52,3 +52,44 @@ export async function saveSoloProgress(heroName: string, heroClass: string, prog
     console.warn('saveSoloProgress exception:', e);
   }
 }
+
+export async function loadProfile(heroName: string): Promise<{ credits: number; deckCards: string[] } | null> {
+  try {
+    const { data, error } = await supabase
+      .from(TABLE)
+      .select('persistent_credits, persistent_deck_cards')
+      .eq('hero_name', heroName)
+      .maybeSingle();
+    if (error) {
+      console.warn('Supabase loadProfile error:', error);
+      return null;
+    }
+    return {
+      credits: (data as any)?.persistent_credits ?? 100,
+      deckCards: ((data as any)?.persistent_deck_cards ?? []) as string[],
+    };
+  } catch (e) {
+    console.warn('loadProfile exception:', e);
+    return null;
+  }
+}
+
+export async function saveProfile(heroName: string, heroClass: string, payload: { credits: number; deckCards: string[] }) {
+  try {
+    const upsert = {
+      hero_name: heroName,
+      hero_class: heroClass || 'Unknown',
+      persistent_credits: payload.credits,
+      persistent_deck_cards: payload.deckCards,
+      updated_at: new Date().toISOString(),
+    } as any;
+    const { error } = await supabase
+      .from(TABLE)
+      .upsert(upsert, { onConflict: 'hero_name' });
+    if (error) {
+      console.warn('Supabase saveProfile error:', error);
+    }
+  } catch (e) {
+    console.warn('saveProfile exception:', e);
+  }
+}
