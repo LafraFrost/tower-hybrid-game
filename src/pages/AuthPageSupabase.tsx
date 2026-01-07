@@ -96,6 +96,9 @@ export default function AuthPage() {
   }, [toast]);
 
   const handlePermissionsComplete = async () => {
+    // Marca i permessi come concessi (o saltati)
+    localStorage.setItem('permissions_granted', 'true');
+    console.log('✅ Permissions granted flag saved');
     setLocation("/");
   };
 
@@ -118,7 +121,15 @@ export default function AuthPage() {
         title: "Accesso effettuato",
         description: `Benvenuto, ${formData.email}!`
       });
-      setShowPermissions(true);
+      
+      // Controlla se i permessi sono già stati concessi
+      const permissionsAlreadyGranted = localStorage.getItem('permissions_granted') === 'true';
+      if (permissionsAlreadyGranted) {
+        console.log("Permissions already granted, skipping permission screen");
+        setLocation("/");
+      } else {
+        setShowPermissions(true);
+      }
     } catch (error: any) {
       console.error("Login failed:", error);
       toast({
@@ -184,6 +195,8 @@ export default function AuthPage() {
         title: "Registrazione completata",
         description: `Benvenuto in Tower Hybrid, ${formData.firstName || formData.email}!`
       });
+      
+      // Per la registrazione mostra sempre la schermata dei permessi la prima volta
       setShowPermissions(true);
     } catch (error: any) {
       console.error("Registration failed:", error);
