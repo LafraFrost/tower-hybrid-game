@@ -88,26 +88,36 @@ const TacticalScreen = () => {
       (async () => {
         let loaded = false;
         if (selectedHero) {
+          console.log('🔍 Loading progress from DB for hero:', selectedHero);
           const db = await loadSoloProgress(selectedHero);
           if (db) {
+            console.log('✅ Progress loaded from DB:', db);
             setCurrentNode(db.currentNode);
             setVisited(new Set<number>(db.visited || [1]));
-            setLogs(db.logs?.length ? db.logs : ["Progresso caricato."]);
+            setLogs(db.logs?.length ? db.logs : ["Progresso caricato dal database."]);
             setBossDefeated(!!db.bossDefeated);
             loaded = true;
+          } else {
+            console.log('⚠️ No DB progress found, trying localStorage');
           }
         }
         if (!loaded) {
           const raw = localStorage.getItem(STORAGE_KEY);
-          if (!raw) return;
+          if (!raw) {
+            console.log('ℹ️ No saved progress, starting fresh');
+            return;
+          }
           const saved = JSON.parse(raw);
+          console.log('📦 Progress loaded from localStorage:', saved);
           if (typeof saved.currentNode === "number") setCurrentNode(saved.currentNode);
           if (Array.isArray(saved.visited)) setVisited(new Set<number>(saved.visited));
           if (Array.isArray(saved.logs)) setLogs(saved.logs);
           if (typeof saved.bossDefeated === "boolean") setBossDefeated(saved.bossDefeated);
         }
       })();
-    } catch {}
+    } catch (err) {
+      console.error('❌ Error loading progress:', err);
+    }
   }, [selectedHero]);
 
   // Persist progress on change (both DB and local)
@@ -120,12 +130,21 @@ const TacticalScreen = () => {
         bossDefeated,
       };
       localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+      console.log('💾 Saving progress to localStorage:', data);
+      
       if (selectedHero) {
         // Best-effort save to DB; heroClass unknown here, store placeholder
-        saveSoloProgress(selectedHero, 'Unknown', data);
+        console.log('🔄 Saving progress to DB for hero:', selectedHero);
+        saveSoloProgress(selectedHero, 'Unknown', data).then(() => {
+          console.log('✅ Progress saved to DB');
+        }).catch(err => {
+          console.warn('⚠️ DB save failed:', err);
+        });
       }
-    } catch {}
-  }, [currentNode, visited, logs, bossDefeated]);
+    } catch (err) {
+      console.error('❌ Error saving progress:', err);
+    }
+  }, [currentNode, visited, logs, bossDefeated, selectedHero]);
 
   const neighbors = useMemo(() => {
     const node = nodeMap.get(currentNode);
