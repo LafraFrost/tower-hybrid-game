@@ -1,7 +1,7 @@
 import { NeonButton } from "@/components/NeonButton";
 import { useLocation } from "wouter";
 import { motion } from "framer-motion";
-import { LogIn, LogOut, Shield, User } from "lucide-react";
+import { LogIn, LogOut, Shield, Sword, QrCode } from "lucide-react";
 import { useCustomAuth } from "@/hooks/use-custom-auth-supabase";
 import { Button } from "@/components/ui/button";
 
@@ -81,29 +81,28 @@ export default function Landing() {
         <div className="space-y-4">
           <NeonButton 
             size="lg" 
-            className="w-full"
+            className="w-full h-20 text-lg gap-3 bg-cyan-600 hover:bg-cyan-500"
             onClick={() => setLocation("/hero-selection")}
-            data-testid="button-single"
+            data-testid="button-solo"
           >
-            SINGOLO
+            <Sword className="w-6 h-6" />
+            <div className="flex flex-col items-start">
+              <span className="font-display font-bold">CAMPAGNA SOLO</span>
+              <span className="text-[10px] text-cyan-200/70 font-mono">Progressione personale</span>
+            </div>
           </NeonButton>
 
           <NeonButton 
             size="lg" 
-            className="w-full"
-            onClick={() => setLocation("/tactical")}
-            data-testid="button-create-room"
-          >
-            CREA STANZA
-          </NeonButton>
-
-          <NeonButton 
-            size="lg" 
-            className="w-full"
+            className="w-full h-20 text-lg gap-3"
             onClick={() => setLocation("/mode")}
-            data-testid="button-join-room"
+            data-testid="button-tabletop"
           >
-            ENTRA STANZA
+            <QrCode className="w-6 h-6" />
+            <div className="flex flex-col items-start">
+              <span className="font-display font-bold">SESSIONE DA TAVOLO</span>
+              <span className="text-[10px] text-fuchsia-200/70 font-mono">Multiplayer 2-4 giocatori</span>
+            </div>
           </NeonButton>
         </div>
 
