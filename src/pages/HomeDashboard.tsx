@@ -233,6 +233,13 @@ const HomeDashboard = () => {
       }
 
       setIsGoblinAttackActive(newStatus);
+      
+      // Reset goblin attack message and alert when disabling
+      if (!newStatus) {
+        setGoblinAttackMessage('');
+        setShowGoblinAlert(false);
+      }
+      
       console.log('✅ Goblin attack status updated in Supabase');
     } catch (error) {
       console.error('Error in toggleGoblinAttack:', error);
