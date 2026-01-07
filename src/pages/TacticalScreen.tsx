@@ -386,6 +386,8 @@ const TacticalScreen = () => {
             const reachable = isReachable(node);
             const color = getNodeColor(node);
             const glowColor = getNodeGlowColor(node);
+            const isAlreadyVisited = visited.has(node.id);
+            const canClick = reachable && (!isAlreadyVisited || node.type === "Combat" || node.type === "Boss");
             return (
               <button
                 key={node.id}
@@ -400,10 +402,10 @@ const TacticalScreen = () => {
                   opacity: reachable ? 1 : 0.4,
                   border: `2px solid ${visited.has(node.id) ? "#22c55e" : color}`,
                   boxShadow: reachable ? `0 0 15px 2px ${glowColor}, inset 0 0 10px ${glowColor}` : "none",
-                  cursor: reachable ? "pointer" : "not-allowed",
+                  cursor: canClick ? "pointer" : "not-allowed",
                   transform: reachable ? "translate(-50%, -50%)" : "translate(-50%, -50%) scale(0.88)",
                 }}
-                disabled={!reachable}
+                disabled={!canClick}
               >
                 <div className="flex flex-col items-center justify-center text-center px-1">
                   <span className="text-3xl drop-shadow-lg">{iconFor(node.type)}</span>
