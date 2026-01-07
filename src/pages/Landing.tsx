@@ -95,7 +95,7 @@ export default function Landing() {
           <NeonButton 
             size="lg" 
             className="w-full h-20 text-lg gap-3"
-            onClick={() => setLocation("/mode")}
+            onClick={() => setLocation("/tabletop")}
             data-testid="button-tabletop"
           >
             <QrCode className="w-6 h-6" />
