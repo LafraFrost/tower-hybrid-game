@@ -611,8 +611,9 @@ const HomeDashboard = () => {
               display: 'flex',
               flexDirection: 'column-reverse', // etichetta sopra, immagine sotto
               alignItems: 'center',
-              opacity: isGoblinAttackActive && loc.buildingType !== 'defense' && !loc.is_built ? 0.5 : 1,
-              pointerEvents: isGoblinAttackActive && loc.buildingType !== 'defense' && !loc.is_built ? 'none' : 'auto',
+              // Se attacco goblin attivo: disabilita solo gli edifici non-defense COSTRUITI. I martelli rimangono visibili
+              opacity: isGoblinAttackActive && loc.buildingType !== 'defense' && loc.is_built ? 0.5 : 1,
+              pointerEvents: isGoblinAttackActive && loc.buildingType !== 'defense' && loc.is_built ? 'none' : 'auto',
             }}
           >
             <img
