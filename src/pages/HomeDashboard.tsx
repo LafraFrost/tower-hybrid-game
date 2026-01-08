@@ -81,7 +81,7 @@ const MenuButton = () => (
       gap: '5px',
     }}
   >
-    ⬅️ Menu Principale
+    🏠 Menu
   </button>
 );
 
