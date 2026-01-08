@@ -46,7 +46,7 @@ export async function saveSoloProgress(heroName: string, heroClass: string, prog
       updated_at: new Date().toISOString(),
     } as any;
 
-    const { error } = await supabase
+    const { data, error } = await supabase
       .from(TABLE)
       .upsert(payload, { onConflict: 'hero_name' });
 
@@ -54,6 +54,24 @@ export async function saveSoloProgress(heroName: string, heroClass: string, prog
       console.warn('⚠️ [progressService] Supabase saveSoloProgress error:', error);
     } else {
       console.log('✅ [progressService] Progress saved successfully');
+      console.log('📊 [progressService] Saved data:', { data, payload });
+      
+      // Verify immediately after save
+      const { data: verifyData, error: verifyError } = await supabase
+        .from(TABLE)
+        .select('solo_progress')
+        .eq('hero_name', heroName)
+        .maybeSingle();
+      
+      if (verifyError) {
+        console.warn('❌ [progressService] Verify error:', verifyError);
+      } else {
+        const savedProgress = (verifyData as any)?.solo_progress;
+        console.log('🔍 [progressService] Verify after save:', savedProgress);
+        if (savedProgress?.currentNode !== progress.currentNode) {
+          console.warn('⚠️ [progressService] DATA MISMATCH! Saved:', progress.currentNode, 'But DB has:', savedProgress?.currentNode);
+        }
+      }
     }
   } catch (e) {
     console.warn('❌ [progressService] saveSoloProgress exception:', e);

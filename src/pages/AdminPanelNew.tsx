@@ -109,7 +109,9 @@ export default function AdminPanel() {
     );
   }
 
+  // Se non autenticato o non admin, reindirizza
   if (!user || !isAdmin) {
+    console.log('❌ Admin Panel: User not authenticated or not admin', { user: user?.email, isAdmin });
     return <Redirect to="/" />;
   }
 

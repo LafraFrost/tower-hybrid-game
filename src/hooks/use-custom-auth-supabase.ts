@@ -32,7 +32,14 @@ export function useCustomAuth() {
   useEffect(() => {
     // Get initial session
     supabase.auth.getSession().then(({ data: { session } }) => {
-      setUser(mapSupabaseUser(session?.user ?? null));
+      const mappedUser = mapSupabaseUser(session?.user ?? null);
+      console.log('🔐 Auth initial session:', { 
+        sessionExists: !!session, 
+        userEmail: session?.user?.email,
+        mappedUser: mappedUser?.email,
+        isAdmin: mappedUser?.isAdmin 
+      });
+      setUser(mappedUser);
       setIsLoading(false);
     });
 
@@ -40,7 +47,14 @@ export function useCustomAuth() {
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, session) => {
-      setUser(mapSupabaseUser(session?.user ?? null));
+      const mappedUser = mapSupabaseUser(session?.user ?? null);
+      console.log('🔐 Auth state changed:', { 
+        event: _event, 
+        userEmail: session?.user?.email,
+        mappedUser: mappedUser?.email,
+        isAdmin: mappedUser?.isAdmin 
+      });
+      setUser(mappedUser);
       setIsLoading(false);
     });
 

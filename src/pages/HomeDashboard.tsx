@@ -22,6 +22,7 @@ const buildingAssets: Record<string, string> = {
 };
 
 const hammerIcon = '/assets/martello.png';
+const DISABLE_BUILDING_DRAG = true;
 
 const normalizeBuildingType = (loc: any) => {
   if (loc.buildingType) return loc.buildingType;
@@ -123,6 +124,7 @@ const HomeDashboard = () => {
   const [draggingId, setDraggingId] = useState<number | null>(null);
   const [selectedLocation, setSelectedLocation] = useState<number | null>(null);
   const [resources, setResources] = useState<any>({ wood: 0, stone: 0, gold: 0 });
+  const [mapImage, setMapImage] = useState('/assets/casa.jpg');
   const [isGoblinAttackActive, setIsGoblinAttackActive] = useState(false);
   const [goblinAttackMessage, setGoblinAttackMessage] = useState('');
   const [showGoblinAlert, setShowGoblinAlert] = useState(false);
@@ -196,6 +198,50 @@ const HomeDashboard = () => {
       console.error('❌ Error loading from Supabase, using defaults:', err);
       setLocations(baseLocations);
     }
+  }, []);
+
+  // Cambia sfondo in base all'ora (DB → fallback locale)
+  useEffect(() => {
+    let timer: number | undefined;
+    const pickImage = async () => {
+      // Optional override via query param: ?theme=day or ?theme=night
+      const params = new URLSearchParams(window.location.search);
+      const themeOverride = params.get('theme');
+      if (themeOverride === 'day' || themeOverride === 'night') {
+        const forced = themeOverride === 'day' ? '/assets/casa.jpg' : '/assets/casa%20notte.jpg';
+        console.log('🎛️ Theme override:', themeOverride, '→', forced);
+        setMapImage(forced);
+        return;
+      }
+
+      try {
+        const { data, error } = await supabase.rpc('get_italy_hour');
+        let hour: number;
+        if (!error && typeof data === 'number') {
+          hour = data;
+          console.log('🕒 Supabase (Europe/Rome) hour:', hour);
+        } else {
+          hour = new Date().getHours();
+          console.log('🕒 Fallback local hour:', hour, error?.message);
+        }
+        const isDay = hour >= 8 && hour < 20;
+        const nextImg = isDay ? '/assets/casa.jpg' : '/assets/casa%20notte.jpg';
+        console.log('🖼️ Background set to:', nextImg);
+        setMapImage(nextImg);
+      } catch (e) {
+        const hour = new Date().getHours();
+        const isDay = hour >= 8 && hour < 20;
+        console.warn('⚠️ Time fetch failed, using local:', e);
+        const nextImg = isDay ? '/assets/casa.jpg' : '/assets/casa%20notte.jpg';
+        console.log('🖼️ Background set (fallback) to:', nextImg);
+        setMapImage(nextImg);
+      }
+    };
+    pickImage();
+    timer = window.setInterval(pickImage, 60_000);
+    return () => {
+      if (timer) window.clearInterval(timer);
+    };
   }, []);
 
   const toggleGoblinAttack = async () => {
@@ -321,6 +367,7 @@ const HomeDashboard = () => {
   };
 
   const handleMouseDown = (id: number) => {
+    if (DISABLE_BUILDING_DRAG) return;
     setDraggingId(id);
   };
 
@@ -401,7 +448,7 @@ const HomeDashboard = () => {
   };
 
   const handleMouseMove = (e: React.MouseEvent) => {
-    if (draggingId === null || !mapRef.current) return;
+    if (DISABLE_BUILDING_DRAG || draggingId === null || !mapRef.current) return;
 
     const rect = mapRef.current.getBoundingClientRect();
     const x = ((e.clientX - rect.left) / rect.width) * 100;
@@ -543,7 +590,7 @@ const HomeDashboard = () => {
         onMouseLeave={handleMouseUp}
         style={{ position: 'relative', width: '1024px', height: '1024px', userSelect: 'none', pointerEvents: isGoblinAttackActive ? 'none' : 'auto', cursor: draggingId !== null ? 'grabbing' : 'default' }}
       >
-        <img src="/assets/casa.jpg" style={{ width: '100%', height: '100%', pointerEvents: 'none' }} alt="Mappa" />
+        <img src={mapImage} style={{ width: '100%', height: '100%', pointerEvents: 'none' }} alt="Mappa" />
 
         {/* Scritta attacco goblin centrata nella mappa */}
         {isGoblinAttackActive && (
@@ -606,7 +653,7 @@ const HomeDashboard = () => {
               top: `${loc.coordinateY}%`,
               left: `${loc.coordinateX}%`,
               transform: 'translate(-50%, -50%)',
-              cursor: draggingId === loc.id ? 'grabbing' : 'grab',
+              cursor: DISABLE_BUILDING_DRAG ? 'default' : (draggingId === loc.id ? 'grabbing' : 'grab'),
               zIndex: selectedLocation === loc.id ? 1000 : draggingId === loc.id ? 100 : 10,
               display: loc.buildingType === 'mine' && !isGoblinAttackActive ? 'none' : 'flex',
               flexDirection: 'column-reverse', // etichetta sopra, immagine sotto

@@ -108,6 +108,7 @@ const HomeDashboard = () => {
   const [draggingId, setDraggingId] = useState<number | null>(null);
   const [selectedLocation, setSelectedLocation] = useState<number | null>(null);
   const [resources, setResources] = useState<any>({ wood: 0, stone: 0, gold: 0 });
+  const [mapImage, setMapImage] = useState('/assets/casa.jpg');
   const [isGoblinAttackActive, setIsGoblinAttackActive] = useState(false);
   const [goblinAttackMessage, setGoblinAttackMessage] = useState('');
   const mapRef = useRef<HTMLDivElement>(null);
@@ -163,6 +164,26 @@ const HomeDashboard = () => {
       .then((res) => res.json())
       .then((data) => setResources(data || { wood: 0, stone: 0, gold: 0 }))
       .catch((err) => console.error('Errore risorse:', err));
+  }, []);
+
+  // Cambia lo sfondo della mappa in base all'ora italiana (Europe/Rome): giorno 08:00-19:59, notte 20:00-07:59
+  useEffect(() => {
+    const pickImage = () => {
+      const formatter = new Intl.DateTimeFormat('it-IT', {
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: false,
+        timeZone: 'Europe/Rome'
+      });
+      const italianTime = formatter.format(new Date());
+      const hour = parseInt(italianTime.split(':')[0], 10);
+      const isDay = hour >= 8 && hour < 20;
+      setMapImage(isDay ? '/assets/casa.jpg' : '/assets/casa notte.jpg');
+      console.log(`🌍 Ora Italia (Europe/Rome): ${italianTime} → ${isDay ? '☀️ Giorno' : '🌙 Notte'}`);
+    };
+    pickImage();
+    const id = setInterval(pickImage, 60_000);
+    return () => clearInterval(id);
   }, []);
 
   // Controlla lo stato dell'attacco goblin ogni 10 secondi
@@ -372,7 +393,7 @@ const HomeDashboard = () => {
         ref={mapRef}
         style={{ position: 'relative', width: '1024px', height: '1024px', userSelect: 'none', pointerEvents: isGoblinAttackActive ? 'none' : 'auto' }}
       >
-        <img src="/assets/casa.jpg" style={{ width: '100%', height: '100%', pointerEvents: 'none' }} alt="Mappa" />
+        <img src={mapImage} style={{ width: '100%', height: '100%', pointerEvents: 'none' }} alt="Mappa" />
 
         {/* Scritta attacco goblin al centro della mappa */}
         {isGoblinAttackActive && (
@@ -529,3 +550,6 @@ const HomeDashboard = () => {
 };
 
 export default HomeDashboard;
+
+
+

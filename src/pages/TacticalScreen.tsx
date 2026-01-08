@@ -84,45 +84,58 @@ const TacticalScreen = () => {
   const [battle, setBattle] = useState<BattleState | null>(null);
   const [bossDefeated, setBossDefeated] = useState(false);
 
-  // Load progress on mount (DB first, localStorage fallback)
+  // Load progress on mount (localStorage first, then sync with DB when selectedHero is ready)
   useEffect(() => {
     try {
-      (async () => {
-        let loaded = false;
-        if (selectedHero) {
-          console.log('🔍 Loading progress from DB for hero:', selectedHero);
-          const db = await loadSoloProgress(selectedHero);
-          if (db) {
-            console.log('✅ Progress loaded from DB:', db);
-            setCurrentNode(db.currentNode);
-            setVisited(new Set<number>(db.visited || [1]));
-            setLogs(db.logs?.length ? db.logs : ["Progresso caricato dal database."]);
-            setBossDefeated(!!db.bossDefeated);
-            loaded = true;
-          } else {
-            console.log('⚠️ No DB progress found, trying localStorage');
-          }
-        }
-        if (!loaded) {
-          const raw = localStorage.getItem(STORAGE_KEY);
-          if (!raw) {
-            console.log('ℹ️ No saved progress, starting fresh');
-            return;
-          }
-          const saved = JSON.parse(raw);
-          console.log('📦 Progress loaded from localStorage:', saved);
-          if (typeof saved.currentNode === "number") setCurrentNode(saved.currentNode);
-          if (Array.isArray(saved.visited)) setVisited(new Set<number>(saved.visited));
-          if (Array.isArray(saved.logs)) setLogs(saved.logs);
-          if (typeof saved.bossDefeated === "boolean") setBossDefeated(saved.bossDefeated);
-        }
-      })();
+      console.log('🔍 Initial load: checking localStorage...');
+      console.log('📋 STORAGE_KEY:', STORAGE_KEY);
+      console.log('📋 localStorage keys:', Object.keys(localStorage));
+      
+      const raw = localStorage.getItem(STORAGE_KEY);
+        console.log('📋 localStorage.getItem result:', raw);
+      
+      if (raw) {
+        const saved = JSON.parse(raw);
+        console.log('📦 Progress loaded from localStorage:', saved);
+        if (typeof saved.currentNode === "number") setCurrentNode(saved.currentNode);
+        if (Array.isArray(saved.visited)) setVisited(new Set<number>(saved.visited));
+        if (Array.isArray(saved.logs)) setLogs(saved.logs);
+        if (typeof saved.bossDefeated === "boolean") setBossDefeated(saved.bossDefeated);
+      } else {
+        console.log('ℹ️ No saved progress in localStorage, starting fresh');
+      }
     } catch (err) {
-      console.error('❌ Error loading progress:', err);
+      console.error('❌ Error loading from localStorage:', err);
     }
+  }, []);
+
+  // Sync with DB when selectedHero becomes available
+  useEffect(() => {
+    if (!selectedHero) {
+      console.log('⏳ selectedHero not yet available, skipping DB sync');
+      return;
+    }
+
+    console.log('🔄 selectedHero available, syncing with DB:', selectedHero);
+    (async () => {
+      try {
+        const db = await loadSoloProgress(selectedHero);
+        if (db) {
+          console.log('✅ Progress found in DB:', db);
+          setCurrentNode(db.currentNode);
+          setVisited(new Set<number>(db.visited || [1]));
+          setLogs(db.logs?.length ? db.logs : ["Progresso caricato dal database."]);
+          setBossDefeated(!!db.bossDefeated);
+        } else {
+          console.log('ℹ️ No progress in DB yet, keeping localStorage state');
+        }
+      } catch (err) {
+        console.error('❌ Error syncing with DB:', err);
+      }
+    })();
   }, [selectedHero]);
 
-  // Persist progress on change (both DB and local)
+  // Persist progress on change (both DB and local with consistency check)
   useEffect(() => {
     try {
       const data = {
@@ -131,17 +144,35 @@ const TacticalScreen = () => {
         logs,
         bossDefeated,
       };
+      
+      // Always save to localStorage immediately
       localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
-      console.log('💾 Saving progress to localStorage:', data);
+      console.log('💾 Saved to localStorage:', { 
+        node: data.currentNode, 
+        visitedCount: data.visited.length,
+        logsCount: data.logs.length 
+      });
+      
+      // Verify localStorage was actually saved
+      const verify = localStorage.getItem(STORAGE_KEY);
+      if (verify) {
+        const parsed = JSON.parse(verify);
+        console.log('✔️ Verified localStorage save:', { 
+          node: parsed.currentNode === data.currentNode ? '✓' : '✗',
+          visited: parsed.visited?.length === data.visited.length ? '✓' : '✗'
+        });
+      }
       
       if (selectedHero) {
         // Best-effort save to DB; heroClass unknown here, store placeholder
-        console.log('🔄 Saving progress to DB for hero:', selectedHero);
+        console.log('🔄 Attempting DB save for hero:', selectedHero);
         saveSoloProgress(selectedHero, 'Unknown', data).then(() => {
-          console.log('✅ Progress saved to DB');
+          console.log('✅ Progress saved to DB successfully');
         }).catch(err => {
-          console.warn('⚠️ DB save failed:', err);
+          console.warn('⚠️ DB save failed (will use localStorage fallback):', err?.message);
         });
+      } else {
+        console.log('ℹ️ selectedHero not available, DB save skipped');
       }
     } catch (err) {
       console.error('❌ Error saving progress:', err);
@@ -391,6 +422,12 @@ const TacticalScreen = () => {
   };
 
   const isReachable = (node: Node) => neighbors.includes(node.id) || node.id === currentNode || visited.has(node.id);
+  // If no hero selected, redirect to hero selection
+  if (!selectedHero) {
+    console.log(' TacticalScreen: No selectedHero, redirecting to hero-selection');
+    setLocation('/hero-selection');
+    return <div className="min-h-screen bg-black flex items-center justify-center text-white">Caricamento...</div>;
+  }
 
   return (
     <div className="min-h-screen bg-slate-950 text-white relative overflow-hidden">
@@ -593,8 +630,27 @@ const TacticalScreen = () => {
             </div>
           </div>
         </div>
+
+        {/* Debug: Persist Status */}
+        <div className="mt-8 p-3 rounded border border-cyan-500/20 bg-cyan-500/5 text-xs text-cyan-300/70 font-mono">
+          <div className="flex items-center justify-between">
+            <span>
+              💾 Node: {currentNode} | Visited: {visited.size} | Hero: {selectedHero || '?'} | Boss: {bossDefeated ? '✓' : '✗'}
+            </span>
+            <button
+              onClick={() => {
+                const data = localStorage.getItem(STORAGE_KEY);
+                console.log('Current localStorage:', data ? JSON.parse(data) : 'empty');
+              }}
+              className="px-2 py-1 bg-cyan-500/10 rounded text-cyan-300 hover:bg-cyan-500/20"
+            >
+              Check Storage
+            </button>
+          </div>
+        </div>
       )}
     </div>
   );
 };
 export default TacticalScreen;
+

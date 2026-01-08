@@ -47,6 +47,7 @@ function loadSavedMode(): GameMode {
 }
 
 function saveState(state: ILocalPlayerState | null) {
+  console.log(' HeroContext saveState:', state?.heroName);
   try {
     if (state) {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
@@ -146,3 +147,4 @@ export function useHero() {
 }
 
 export { GAME_DATA };
+
