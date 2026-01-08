@@ -24,6 +24,8 @@ const buildingAssets: Record<string, string> = {
 const hammerIcon = '/assets/martello.png';
 const DISABLE_BUILDING_DRAG = true;
 
+console.log('🏗️ HomeDashboard caricato - DISABLE_BUILDING_DRAG:', DISABLE_BUILDING_DRAG);
+
 const normalizeBuildingType = (loc: any) => {
   if (loc.buildingType) return loc.buildingType;
   if (loc.building_type) return loc.building_type;
@@ -367,7 +369,10 @@ const HomeDashboard = () => {
   };
 
   const handleMouseDown = (id: number) => {
-    if (DISABLE_BUILDING_DRAG) return;
+    if (DISABLE_BUILDING_DRAG) {
+      console.log('🚫 Movimento edifici disattivato');
+      return;
+    }
     setDraggingId(id);
   };
 
