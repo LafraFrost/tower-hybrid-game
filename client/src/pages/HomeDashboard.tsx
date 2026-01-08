@@ -10,6 +10,7 @@ const buildingAssets: Record<string, string> = {
 };
 
 const hammerIcon = '/assets/martello.png';
+const DISABLE_BUILDING_DRAG = true;
 
 const normalizeBuildingType = (loc: any) => {
   if (loc.buildingType) return loc.buildingType;
@@ -206,8 +207,9 @@ const HomeDashboard = () => {
     return () => clearInterval(interval);
   }, []);
 
-  const handleMouseDown = (_id: number) => {
-    return; // dragging disattivato per test build
+  const handleMouseDown = (id: number) => {
+    if (DISABLE_BUILDING_DRAG) return;
+    setDraggingId(id);
   };
 
   const getEffectDescription = (type: string) => {
@@ -278,7 +280,7 @@ const HomeDashboard = () => {
   };
 
   const handleMouseMove = (e: React.MouseEvent) => {
-    if (draggingId === null || !mapRef.current) return;
+    if (DISABLE_BUILDING_DRAG || draggingId === null || !mapRef.current) return;
 
     const rect = mapRef.current.getBoundingClientRect();
     const x = ((e.clientX - rect.left) / rect.width) * 100;
@@ -447,7 +449,7 @@ const HomeDashboard = () => {
               top: `${loc.coordinateY}%`,
               left: `${loc.coordinateX}%`,
               transform: 'translate(-50%, -50%)',
-              cursor: 'pointer',
+              cursor: DISABLE_BUILDING_DRAG ? 'default' : 'pointer',
               zIndex: selectedLocation === loc.id ? 1000 : draggingId === loc.id ? 100 : 10,
               display: 'flex',
               flexDirection: 'column-reverse', // etichetta sopra, immagine sotto
