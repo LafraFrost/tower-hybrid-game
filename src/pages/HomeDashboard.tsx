@@ -210,7 +210,7 @@ const HomeDashboard = () => {
       const params = new URLSearchParams(window.location.search);
       const themeOverride = params.get('theme');
       if (themeOverride === 'day' || themeOverride === 'night') {
-        const forced = themeOverride === 'day' ? '/assets/casa.jpg' : '/assets/casa%20notte.jpg';
+        const forced = themeOverride === 'day' ? '/assets/casa.jpg' : '/assets/casa_notte.jpg';
         console.log('🎛️ Theme override:', themeOverride, '→', forced);
         setMapImage(forced);
         return;
@@ -227,14 +227,14 @@ const HomeDashboard = () => {
           console.log('🕒 Fallback local hour:', hour, error?.message);
         }
         const isDay = hour >= 8 && hour < 20;
-        const nextImg = isDay ? '/assets/casa.jpg' : '/assets/casa%20notte.jpg';
+        const nextImg = isDay ? '/assets/casa.jpg' : '/assets/casa_notte.jpg';
         console.log('🖼️ Background set to:', nextImg);
         setMapImage(nextImg);
       } catch (e) {
         const hour = new Date().getHours();
         const isDay = hour >= 8 && hour < 20;
         console.warn('⚠️ Time fetch failed, using local:', e);
-        const nextImg = isDay ? '/assets/casa.jpg' : '/assets/casa%20notte.jpg';
+        const nextImg = isDay ? '/assets/casa.jpg' : '/assets/casa_notte.jpg';
         console.log('🖼️ Background set (fallback) to:', nextImg);
         setMapImage(nextImg);
       }
