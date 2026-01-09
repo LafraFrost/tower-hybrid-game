@@ -34,17 +34,21 @@ export default function AdminPanel() {
   useEffect(() => {
     loadLocations();
     
-    // Subscribe to real-time changes
-    const subscription = supabase
-      .from('gps_locations')
-      .on('*', (payload) => {
-        console.log('Real-time update:', payload);
-        loadLocations(); // Ricarica quando c'è un cambiamento
-      })
+    // Subscribe to real-time changes (Supabase Realtime v2 API)
+    const channel = supabase
+      .channel('gps-locations-changes')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'gps_locations' },
+        (payload) => {
+          console.log('Real-time GPS update:', payload);
+          loadLocations(); // Ricarica quando c'è un cambiamento
+        }
+      )
       .subscribe();
 
     return () => {
-      subscription.unsubscribe();
+      supabase.removeChannel(channel);
     };
   }, []);
 
