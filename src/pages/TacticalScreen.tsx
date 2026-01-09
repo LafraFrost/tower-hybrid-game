@@ -630,24 +630,6 @@ const TacticalScreen = () => {
             </div>
           </div>
         </div>
-
-        {/* Debug: Persist Status */}
-        <div className="mt-8 p-3 rounded border border-cyan-500/20 bg-cyan-500/5 text-xs text-cyan-300/70 font-mono">
-          <div className="flex items-center justify-between">
-            <span>
-              💾 Node: {currentNode} | Visited: {visited.size} | Hero: {selectedHero || '?'} | Boss: {bossDefeated ? '✓' : '✗'}
-            </span>
-            <button
-              onClick={() => {
-                const data = localStorage.getItem(STORAGE_KEY);
-                console.log('Current localStorage:', data ? JSON.parse(data) : 'empty');
-              }}
-              className="px-2 py-1 bg-cyan-500/10 rounded text-cyan-300 hover:bg-cyan-500/20"
-            >
-              Check Storage
-            </button>
-          </div>
-        </div>
       )}
     </div>
   );
