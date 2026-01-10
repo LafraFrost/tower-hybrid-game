@@ -706,34 +706,34 @@ const HomeDashboard = () => {
   };
 
   const handleMiniCombatVictory = (buildingName: string) => {
-    // Mark building as defended
+    // Mark building as defended - persists state locally WITHOUT page reload
     const updatedDefended = [...defendedBuildings, buildingName];
     setDefendedBuildings(updatedDefended);
     try {
       localStorage.setItem('defended_buildings', JSON.stringify(updatedDefended));
     } catch {}
     
-    // Close mini combat
+    // Close mini combat overlay immediately
     setActiveMiniCombat(null);
     
-    // Show victory toast
+    // Show victory toast feedback
     showToast('success', `✅ ${buildingName} è stato difeso!`, { duration: 3000 });
     
     console.log('🎉 Mini combat victory:', buildingName);
   };
 
   const handleMiniCombatDefeat = (buildingName: string) => {
-    // Mark building as ruined
+    // Mark building as ruined - persists state locally WITHOUT page reload
     const updatedRuined = [...ruinedBuildings, buildingName];
     setRuinedBuildings(updatedRuined);
     try {
       localStorage.setItem('ruined_buildings', JSON.stringify(updatedRuined));
     } catch {}
     
-    // Close mini combat
+    // Close mini combat overlay immediately
     setActiveMiniCombat(null);
     
-    // Show defeat toast
+    // Show defeat toast feedback
     showToast('error', `❌ ${buildingName} è stato distrutto!`, { duration: 3000 });
     
     console.log('💀 Mini combat defeat:', buildingName);
@@ -764,14 +764,14 @@ const HomeDashboard = () => {
 
     // 2. Clear Supabase
     try {
-      // Reset resources to initial values
+      // Reset resources to initial values (note: is_mine_unlocked column does not exist in user_resources table)
       const { error: resError } = await supabase
         .from('user_resources')
         .update({ 
           wood: 0,
           stone: 50,
           gold: 0,
-          is_mine_unlocked: false 
+          // is_mine_unlocked: false  // ❌ COMMENTED: Column does not exist in user_resources table
         })
         .eq('user_id', 1);
 
@@ -888,7 +888,7 @@ const HomeDashboard = () => {
       {/* Container Globale degli Eventi */}
       <div className="fixed inset-0 z-[60] pointer-events-none">
         
-        {/* BANNER ATTACCO FISSO IN ALTO */}
+        {/* BANNER ATTACCO FISSO IN ALTO - z-[70] assicura visibilità sopra overlay rosso (z-[60]) */}
         {isGoblinAttackActive && (
           <div className="fixed top-0 left-1/2 -translate-x-1/2 z-[70] w-full pointer-events-none">
             <div className="flex items-center justify-center bg-red-600/90 text-white py-3 font-black text-lg">
