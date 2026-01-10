@@ -175,12 +175,40 @@ const HomeDashboard = () => {
   const [defendedBuildings, setDefendedBuildings] = useState<string[]>([]);
   const [ruinedBuildings, setRuinedBuildings] = useState<string[]>([]);
   const [activeMiniCombat, setActiveMiniCombat] = useState<string | null>(null);
-  const [showCampPopup, setShowCampPopup] = useState(false);
   const [showRepairPopup, setShowRepairPopup] = useState(false);
   const [repairTarget, setRepairTarget] = useState<any>(null);
   const [repairCost, setRepairCost] = useState<{ wood: number; stone: number; gold: number }>({ wood: 0, stone: 0, gold: 0 });
   const mapRef = useRef<HTMLDivElement>(null);
   const defenseCheckDoneRef = useRef(false);
+  const [showMineRebuildPopup, setShowMineRebuildPopup] = useState(false);
+  const [mineRebuildCost] = useState<{ stone: number; gold: number }>({ stone: 100, gold: 50 });
+
+  // Helper: refresh locations from Supabase and update local state
+  const fetchLocations = async (): Promise<boolean> => {
+    try {
+      const { data, error } = await supabase
+        .from('game_locations')
+        .select('*')
+        .order('id');
+      if (error) {
+        console.warn('⚠️ Failed to fetch locations:', error);
+        return false;
+      }
+      if (data) {
+        setLocations(
+          data.map((loc: any) => ({
+            ...loc,
+            is_built: Boolean(loc.is_built),
+            buildingType: normalizeBuildingType(loc),
+          }))
+        );
+      }
+      return true;
+    } catch (err) {
+      console.warn('⚠️ Exception while fetching locations:', err);
+      return false;
+    }
+  };
 
   type Toast = { id: number; type: 'success' | 'error' | 'warning' | 'info'; message: string; persistent?: boolean; duration?: number };
   const [toasts, setToasts] = useState<Toast[]>([]);
@@ -396,6 +424,12 @@ const HomeDashboard = () => {
       supabase.removeChannel(locationsChannel);
     };
   }, [loadLocations]);
+
+  // Keep `isMineUnlocked` in sync with DB `game_locations.is_unlocked`
+  useEffect(() => {
+    const mineLoc = locations.find((l) => normalizeBuildingType(l) === 'mine');
+    setIsMineUnlocked(Boolean(mineLoc?.is_unlocked));
+  }, [locations]);
 
   useEffect(() => {
     // Try to load resources from API, fallback to mock data
@@ -682,6 +716,75 @@ const HomeDashboard = () => {
     setRepairTarget(null);
   };
 
+  // Confirm Mine Rebuild: unlock visible triangle → rebuild mine in DB
+  const confirmMineRebuild = async () => {
+    const mineLoc = locations.find((l) => normalizeBuildingType(l) === 'mine');
+    if (!mineLoc) {
+      showToast('error', '❌ Miniera non trovata.', { duration: 3000 });
+      return;
+    }
+    if (mineLoc.is_built) {
+      setShowMineRebuildPopup(false);
+      return;
+    }
+
+    // Resource check
+    const needStone = mineRebuildCost.stone;
+    const needGold = mineRebuildCost.gold;
+    const hasEnough = (resources.stone ?? 0) >= needStone && (resources.gold ?? 0) >= needGold;
+    if (!hasEnough) {
+      showToast('error', `❌ Risorse insufficienti! Servono: ${needStone} Pietra, ${needGold} Oro.`, { duration: 4000 });
+      return;
+    }
+
+    // Deduct locally and try to persist on Supabase
+    setResources((prev: any) => ({
+      ...prev,
+      stone: Math.max(0, (prev.stone ?? 0) - needStone),
+      gold: Math.max(0, (prev.gold ?? 0) - needGold),
+    }));
+
+    try {
+      // Persist resource deduction if table exists
+      const { data: resData, error: resErr } = await supabase
+        .from('user_resources')
+        .select('stone, gold')
+        .eq('user_id', 1)
+        .maybeSingle();
+      if (!resErr && resData) {
+        const newStone = Math.max(0, (resData.stone ?? 0) - needStone);
+        const newGold = Math.max(0, (resData.gold ?? 0) - needGold);
+        await supabase
+          .from('user_resources')
+          .update({ stone: newStone, gold: newGold })
+          .eq('user_id', 1);
+      }
+    } catch (err) {
+      console.warn('⚠️ Supabase resource update failed (continuing with local only):', err);
+    }
+
+    // Update game_locations: is_built = true
+    const { error: buildErr } = await supabase
+      .from('game_locations')
+      .update({ is_built: true })
+      .eq('id', mineLoc.id);
+    if (buildErr) {
+      console.warn('⚠️ Impossibile ricostruire Miniera in DB:', buildErr);
+      showToast('error', '❌ Errore DB durante la ricostruzione della Miniera.', { duration: 4000 });
+      return;
+    }
+
+    // Refresh locations from DB to reflect rebuilt mine
+    const ok = await fetchLocations();
+    if (!ok) {
+      showToast('error', '⚠️ Sincronizzazione fallita dopo ricostruzione.', { duration: 3000 });
+      return;
+    }
+
+    setShowMineRebuildPopup(false);
+    showToast('success', '⛏️ Miniera ricostruita con successo!', { duration: 3000 });
+  };
+
 
   const handleMouseMove = (e: React.MouseEvent) => {
     if (DISABLE_BUILDING_DRAG || draggingId === null || !mapRef.current) return;
@@ -738,7 +841,7 @@ const HomeDashboard = () => {
     
     // Update Supabase game_locations to clear under_attack flag AND reset is_ruined
     const buildingLoc = locations.find((l) => l.name === buildingName);
-    let supabaseSuccess = true;
+    let buildingUpdateSuccess = true;
     
     if (buildingLoc) {
       try {
@@ -749,42 +852,71 @@ const HomeDashboard = () => {
         
         if (error) {
           console.warn(`⚠️ Supabase update failed for ${buildingName}:`, error);
-          supabaseSuccess = false;
+          buildingUpdateSuccess = false;
+          showToast('error', `Errore DB: impossibile salvare difesa di ${buildingName}. Riprova.`);
         } else {
           console.log(`✅ Supabase updated for ${buildingName}`);
-          // Refresh locations to reflect changes immediately
-          try {
-            const { data } = await supabase.from('game_locations').select('*').order('id');
-            if (data) {
-              setLocations(data.map((loc: any) => ({
-                ...loc,
-                is_built: Boolean(loc.is_built),
-                buildingType: normalizeBuildingType(loc)
-              })));
-            }
-          } catch (refreshErr) {
-            console.warn(`⚠️ Failed to refresh locations:`, refreshErr);
-          }
         }
       } catch (err) {
         console.warn(`⚠️ Supabase error for ${buildingName}:`, err);
-        supabaseSuccess = false;
+        buildingUpdateSuccess = false;
+        showToast('error', `Errore DB: ${String((err as any)?.message || err)}.`);
       }
     }
     
-    // Reset combat state and defending mode - ALWAYS, regardless of Supabase success
-    // Use setTimeout to ensure state is reset even if DB is slow
-    setActiveMiniCombat(null);
-    setIsDefending(false);
-    
-    // Fallback: if Supabase fails, still close after 2 seconds
-    if (!supabaseSuccess) {
-      setTimeout(() => {
-        console.log('⏰ Fallback: forcing state reset after Supabase timeout');
-        setActiveMiniCombat(null);
-        setIsDefending(false);
-      }, 2000);
+    // If building update failed, keep defense mode and do not close overlay
+    if (!buildingUpdateSuccess) {
+      return;
     }
+
+    // Determine if this was the last building under attack (based on local state)
+    const anyUnderAttackLeft = locations.some((loc) => {
+      const bt = normalizeBuildingType(loc);
+      if (!bt) return false;
+      const built = Boolean(loc.is_built);
+      const defended = updatedDefended.includes(loc.name);
+      const ruined = ruinedBuildings.includes(loc.name);
+      return isGoblinAttackActive && built && !defended && !ruined;
+    });
+
+    // If no buildings left under attack, kill the goblin event and unlock mine in DB
+    if (!anyUnderAttackLeft) {
+      // Kill switch: deactivate goblin attack event
+      const { error: eventErr } = await supabase
+        .from('events')
+        .update({ is_active: false })
+        .eq('event_type', 'goblin_attack');
+      if (eventErr) {
+        console.warn('⚠️ Failed to deactivate goblin event:', eventErr);
+        showToast('error', 'Errore DB: impossibile terminare evento Goblin.');
+        return; // Do not close UI if DB failed
+      }
+
+      // Unlock the Mine on DB
+      const mineLoc = locations.find((l) => normalizeBuildingType(l) === 'mine');
+      if (mineLoc) {
+        const { error: mineErr } = await supabase
+          .from('game_locations')
+          .update({ is_unlocked: true })
+          .eq('id', mineLoc.id);
+        if (mineErr) {
+          console.warn('⚠️ Failed to unlock Mine:', mineErr);
+          showToast('error', 'Errore DB: impossibile sbloccare la Miniera.');
+          return; // Do not close UI if DB failed
+        }
+      }
+    }
+
+    // Sync locations after DB updates
+    const refreshed = await fetchLocations();
+    if (!refreshed) {
+      showToast('error', 'Errore DB: sincronizzazione locations fallita.');
+      return; // Keep defense mode if refresh fails
+    }
+
+    // Clean up UI only after DB success and refresh
+    setIsDefending(false);
+    setActiveMiniCombat(null);
     
     // Show victory toast feedback
     showToast('success', `✅ ${buildingName} è stato difeso!`, { duration: 3000 });
@@ -802,7 +934,7 @@ const HomeDashboard = () => {
     
     // Update Supabase game_locations to mark as ruined
     const buildingLoc = locations.find((l) => l.name === buildingName);
-    let supabaseSuccess = true;
+    let buildingUpdateSuccess = true;
     
     if (buildingLoc) {
       try {
@@ -813,41 +945,56 @@ const HomeDashboard = () => {
         
         if (error) {
           console.warn(`⚠️ Supabase update failed for ${buildingName}:`, error);
-          supabaseSuccess = false;
+          buildingUpdateSuccess = false;
+          showToast('error', `Errore DB: impossibile salvare distruzione di ${buildingName}.`);
         } else {
           console.log(`💀 Supabase updated for ${buildingName}`);
-          // Refresh locations to reflect changes immediately
-          try {
-            const { data } = await supabase.from('game_locations').select('*').order('id');
-            if (data) {
-              setLocations(data.map((loc: any) => ({
-                ...loc,
-                is_built: Boolean(loc.is_built),
-                buildingType: normalizeBuildingType(loc)
-              })));
-            }
-          } catch (refreshErr) {
-            console.warn(`⚠️ Failed to refresh locations:`, refreshErr);
-          }
         }
       } catch (err) {
         console.warn(`⚠️ Supabase error for ${buildingName}:`, err);
-        supabaseSuccess = false;
+        buildingUpdateSuccess = false;
+        showToast('error', `Errore DB: ${String((err as any)?.message || err)}.`);
       }
     }
     
-    // Reset combat state and defending mode - ALWAYS, regardless of Supabase success
+    // If building update failed, keep defense mode and do not close overlay
+    if (!buildingUpdateSuccess) {
+      return;
+    }
+
+    // Determine if this was the last building under attack
+    const anyUnderAttackLeft = locations.some((loc) => {
+      const bt = normalizeBuildingType(loc);
+      if (!bt) return false;
+      const built = Boolean(loc.is_built);
+      const defended = defendedBuildings.includes(loc.name);
+      const ruined = updatedRuined.includes(loc.name);
+      return isGoblinAttackActive && built && !defended && !ruined;
+    });
+
+    // If none left, deactivate goblin event (do not unlock Mine on defeat)
+    if (!anyUnderAttackLeft) {
+      const { error: eventErr } = await supabase
+        .from('events')
+        .update({ is_active: false })
+        .eq('event_type', 'goblin_attack');
+      if (eventErr) {
+        console.warn('⚠️ Failed to deactivate goblin event:', eventErr);
+        showToast('error', 'Errore DB: impossibile terminare evento Goblin.');
+        return; // Do not close UI if DB failed
+      }
+    }
+
+    // Sync locations after DB updates
+    const refreshed = await fetchLocations();
+    if (!refreshed) {
+      showToast('error', 'Errore DB: sincronizzazione locations fallita.');
+      return; // Keep defense mode if refresh fails
+    }
+
+    // Clean up UI only after DB success and refresh
     setActiveMiniCombat(null);
     setIsDefending(false);
-    
-    // Fallback: if Supabase fails, still close after 2 seconds
-    if (!supabaseSuccess) {
-      setTimeout(() => {
-        console.log('⏰ Fallback: forcing state reset after Supabase timeout');
-        setActiveMiniCombat(null);
-        setIsDefending(false);
-      }, 2000);
-    }
     
     // Show defeat toast feedback
     showToast('error', `❌ ${buildingName} è stato distrutto!`, { duration: 3000 });
@@ -1074,9 +1221,8 @@ const HomeDashboard = () => {
               transform: 'translate(-50%, -50%)',
               cursor: DISABLE_BUILDING_DRAG ? 'default' : (draggingId === loc.id ? 'grabbing' : 'grab'),
               zIndex: selectedLocation === loc.id ? 1000 : draggingId === loc.id ? 100 : 10,
-              // Hide mine if not unlocked and not built, OR if goblin attack active
-              display: (loc.buildingType === 'mine' && !isMineUnlocked && !loc.is_built) || 
-                       (loc.buildingType === 'mine' && !isGoblinAttackActive) ? 'none' : 'flex',
+              // Hide mine if path not unlocked in DB and it's not built yet
+              display: (loc.buildingType === 'mine' && !Boolean(loc.is_unlocked) && !loc.is_built) ? 'none' : 'flex',
               flexDirection: 'column-reverse', // etichetta sopra, immagine sotto
               alignItems: 'center',
               // Se attacco goblin attivo: disabilita solo gli edifici non-defense COSTRUITI
@@ -1084,6 +1230,39 @@ const HomeDashboard = () => {
               pointerEvents: isGoblinAttackActive && loc.buildingType !== 'defense' && loc.is_built ? 'none' : 'auto',
             }}
           >
+            {/* Yellow Triangle (site) for Mine when unlocked in DB but not built */}
+            {(() => {
+              const isMine = loc.buildingType === 'mine';
+              const unlocked = Boolean(loc.is_unlocked);
+              if (!(isMine && unlocked && !loc.is_built)) return null;
+              return (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setShowMineRebuildPopup(true);
+                  }}
+                  style={{
+                    position: 'absolute',
+                    top: '-48px',
+                    left: '50%',
+                    transform: 'translateX(-50%)',
+                    backgroundColor: 'rgba(234,179,8,0.9)',
+                    border: '2px solid #d97706',
+                    color: '#1f2937',
+                    padding: '8px 12px',
+                    borderRadius: '10px',
+                    fontWeight: 800,
+                    boxShadow: '0 0 20px rgba(234,179,8,0.8)',
+                    animation: 'pulse 1.2s infinite',
+                    zIndex: 120,
+                    pointerEvents: 'auto',
+                  }}
+                  title="Miniera scoperta! Ricostruisci"
+                >
+                  ⚠️ Cantiere Miniera
+                </button>
+              );
+            })()}
             {/* Fire Swords Overlay when under attack - visible only in defending mode */}
             {(() => {
               const defended = defendedBuildings.includes(loc.name);
@@ -1242,46 +1421,8 @@ const HomeDashboard = () => {
       </div>
     </div>
   );
-      {/* Yellow Triangle Camp overlay above Mine when all attacks handled and mine not unlocked */}
-      {(() => {
-        if (isMineUnlocked) return null;
-        const mineLoc = locations.find((l) => normalizeBuildingType(l) === 'mine');
-        if (!mineLoc) return null;
-        const anyUnderAttack = locations.some((loc) => {
-          const defended = defendedBuildings.includes(loc.name);
-          const ruined = ruinedBuildings.includes(loc.name);
-          return isGoblinAttackActive && loc.is_built && !defended && !ruined;
-        });
-        if (anyUnderAttack) return null;
-        return (
-          <div
-            style={{
-              position: 'absolute',
-              top: `${mineLoc.coordinateY}%`,
-              left: `${mineLoc.coordinateX}%`,
-              transform: 'translate(-50%, -120%)',
-              zIndex: 3000,
-            }}
-          >
-            <button
-              onClick={() => setShowCampPopup(true)}
-              style={{
-                backgroundColor: 'rgba(234,179,8,0.9)',
-                border: '2px solid #d97706',
-                color: '#1f2937',
-                padding: '8px 12px',
-                borderRadius: '10px',
-                fontWeight: '800',
-                boxShadow: '0 0 20px rgba(234,179,8,0.8)',
-                animation: 'pulse 1.2s infinite',
-              }}
-            >
-              ⚠️ Accampamento Goblin
-            </button>
-          </div>
-        );
-      })()}
-      {showCampPopup && (
+      {/* Mine Rebuild Popup */}
+      {showMineRebuildPopup && (
         <div
           style={{
             position: 'fixed',
@@ -1291,9 +1432,9 @@ const HomeDashboard = () => {
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            zIndex: 4000,
+            zIndex: 4500,
           }}
-          onClick={() => setShowCampPopup(false)}
+          onClick={() => setShowMineRebuildPopup(false)}
         >
           <div
             style={{
@@ -1306,31 +1447,36 @@ const HomeDashboard = () => {
             }}
             onClick={(e) => e.stopPropagation()}
           >
-            <h3 style={{ fontSize: '22px', fontWeight: 900, marginBottom: '8px' }}>Abbiamo scacciato gli assalitori!</h3>
+            <h3 style={{ fontSize: '22px', fontWeight: 900, marginBottom: '8px' }}>Miniera Scoperta!</h3>
             <p style={{ color: '#fef3c7', marginBottom: '16px' }}>
-              Ora distruggiamo il loro covo per liberare definitivamente l'area.
+              Vuoi ricostruirla per abilitare l'estrazione?
             </p>
+            <div style={{ display: 'flex', gap: '12px', marginBottom: '16px' }}>
+              <div style={{ flex: 1, backgroundColor: 'rgba(234,179,8,0.15)', padding: '10px', borderRadius: '10px', border: '2px solid #f59e0b' }}>
+                🪨 Pietra: <strong>{mineRebuildCost.stone}</strong>
+              </div>
+              <div style={{ flex: 1, backgroundColor: 'rgba(234,179,8,0.15)', padding: '10px', borderRadius: '10px', border: '2px solid #f59e0b' }}>
+                💰 Oro: <strong>{mineRebuildCost.gold}</strong>
+              </div>
+            </div>
             <div style={{ display: 'flex', gap: '12px' }}>
               <button
-                onClick={() => {
-                  setShowCampPopup(false);
-                  window.location.href = '/solo';
-                }}
+                onClick={confirmMineRebuild}
                 style={{
                   flex: 1,
-                  backgroundColor: '#ef4444',
-                  color: 'white',
-                  border: '2px solid #b91c1c',
+                  backgroundColor: '#f59e0b',
+                  color: '#1f2937',
+                  border: '2px solid #d97706',
                   padding: '10px 14px',
                   borderRadius: '10px',
                   fontWeight: 800,
                   cursor: 'pointer',
                 }}
               >
-                ATTACCA IL COVO
+                RICOSTRUISCI
               </button>
               <button
-                onClick={() => setShowCampPopup(false)}
+                onClick={() => setShowMineRebuildPopup(false)}
                 style={{
                   flex: 1,
                   backgroundColor: '#374151',
