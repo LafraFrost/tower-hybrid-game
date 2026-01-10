@@ -1,12 +1,4 @@
 import React, { useEffect, useRef, useState } from 'react';
-import {
-  AlertDialog,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogTitle,
-} from '@/components/ui/alert-dialog';
-import { Button } from '@/components/ui/button';
-import { Swords } from 'lucide-react';
 import { supabase } from '@/lib/supabaseClient';
 
 const buildingAssets: Record<string, string> = {
@@ -733,33 +725,39 @@ const HomeDashboard = () => {
         })}
       </div>
 
-      {/* Overlay Attacco Goblin - Fase 2: Filtro leggero con bordo pulsante (pointer-events-none) */}
-      {isGoblinAttackActive && isDefending && (
-        <div
-          style={{
-            position: 'fixed',
-            top: 0,
-            left: 0,
-            width: '100vw',
-            height: '100vh',
-            backgroundColor: 'rgba(127, 29, 29, 0.15)',
-            border: '8px solid rgba(220, 38, 38, 0.8)',
-            borderRadius: '0',
-            zIndex: 3000,
-            animation: 'pulseBorder 1.5s infinite',
-            pointerEvents: 'none',
-          }}
-        >
-          <style>{`
-            @keyframes pulseBorder {
-              0%, 100% { border-color: rgba(220, 38, 38, 0.6); }
-              50% { border-color: rgba(239, 68, 68, 0.9); }
-            }
-          `}</style>
-        </div>
-      )}
+      {/* Container Globale degli Eventi */}
+      <div className="fixed inset-0 z-[60] pointer-events-none">
+        
+        {/* 1. Overlay Rosso (Solo Visivo) */}
+        {isGoblinAttackActive && (
+          <div className={`absolute inset-0 transition-opacity duration-1000 ${
+            isDefending ? 'bg-red-900/20 border-[12px] border-red-600/30 animate-pulse' : 'bg-red-600/80'
+          }`} />
+        )}
 
+        {/* 2. Menu/Messaggio Centrale (Cliccabile) */}
+        {!isDefending && isGoblinAttackActive && (
+          <div className="absolute inset-0 flex items-center justify-center pointer-events-auto">
+            <div className="bg-black/90 p-8 border-4 border-red-600 text-center max-w-md">
+              <h2 className="text-4xl font-black text-red-500 mb-4">ATTACCO GOBLIN!</h2>
+              <p className="text-white mb-6">Le tue costruzioni sono in pericolo!</p>
+              <button 
+                onClick={() => setIsDefending(true)}
+                className="bg-red-600 hover:bg-red-700 text-white px-10 py-4 font-bold uppercase"
+              >
+                Difendi il Villaggio
+              </button>
+            </div>
+          </div>
+        )}
 
+        {/* 3. Banner Persistente (Non blocca i click) */}
+        {isDefending && isGoblinAttackActive && (
+          <div className="absolute top-10 left-1/2 -translate-x-1/2 bg-red-600 text-white px-6 py-2 rounded-full font-black animate-bounce pointer-events-none">
+            🔥 DIFESA IN CORSO: CLICCA SULLE SPADE 🔥
+          </div>
+        )}
+      </div>
 
       {/* Messaggio temporaneo attacco goblin */}
       {goblinAttackMessage && (
@@ -798,37 +796,6 @@ const HomeDashboard = () => {
       >
         <img src={mapImage} style={{ width: '100%', height: '100%', pointerEvents: 'none' }} alt="Mappa" />
 
-        {/* Banner elegante in alto durante la fase di difesa */}
-        {isGoblinAttackActive && isDefending && (
-          <div
-            style={{
-              position: 'absolute',
-              top: '10%',
-              left: '50%',
-              transform: 'translateX(-50%)',
-              zIndex: 4000,
-              pointerEvents: 'none',
-              backgroundColor: 'rgba(127, 29, 29, 0.95)',
-              border: '3px solid #ef4444',
-              borderRadius: '16px',
-              padding: '16px 40px',
-              boxShadow: '0 10px 40px rgba(0,0,0,0.6)',
-            }}
-          >
-            <span
-              style={{
-                display: 'inline-block',
-                color: '#fca5a5',
-                fontSize: '32px',
-                fontWeight: 900,
-                textShadow: '0 2px 8px rgba(0,0,0,0.8)',
-                letterSpacing: '2px',
-              }}
-            >
-              🔥 DIFENDI IL VILLAGGIO 🔥
-            </span>
-          </div>
-        )}
 
         {locations.map((loc) => (
           <div
