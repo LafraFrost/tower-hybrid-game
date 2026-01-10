@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { supabase } from '@/lib/supabaseClient';
 import { MiniCombat } from '@/components/MiniCombat';
+import { GoblinAttackBanner } from '@/components/GoblinAttackBanner';
 
 const buildingAssets: Record<string, string> = {
   sawmill: '/assets/segheria.png',
@@ -170,7 +171,6 @@ const HomeDashboard = () => {
   const [isMineUnlocked, setIsMineUnlocked] = useState(false);
   const [mapImage, setMapImage] = useState('/assets/casa.jpg');
   const [isGoblinAttackActive, setIsGoblinAttackActive] = useState(false);
-  const [goblinAttackMessage, setGoblinAttackMessage] = useState('');
   const [isDefending, setIsDefending] = useState(false);
   const [defendedBuildings, setDefendedBuildings] = useState<string[]>([]);
   const [ruinedBuildings, setRuinedBuildings] = useState<string[]>([]);
@@ -356,9 +356,10 @@ const HomeDashboard = () => {
 
       setIsGoblinAttackActive(newStatus);
       
-      // Reset goblin attack message and alert when disabling
+      // Reset defense mode and toasts when disabling attack
       if (!newStatus) {
-        setGoblinAttackMessage('');
+        setIsDefending(false);
+        setToasts([]);
       }
       
       console.log('✅ Goblin attack status updated in Supabase');
@@ -542,8 +543,7 @@ const HomeDashboard = () => {
 
       // Se attacco goblin attivo, disabilita build per tutte le strutture tranne difesa
       if (isGoblinAttackActive && loc.buildingType !== 'defense') {
-        setGoblinAttackMessage('Durante l\'attacco Goblin puoi costruire solo strutture di difesa!');
-        setTimeout(() => setGoblinAttackMessage(''), 3000);
+        showToast('warning', '⚠️ Durante l\'attacco Goblin puoi costruire solo strutture di difesa!', { duration: 3000 });
         return;
       }
 
@@ -836,6 +836,10 @@ const HomeDashboard = () => {
           onDefeat={() => handleMiniCombatDefeat(activeMiniCombat)}
         />
       )}
+      
+      {/* Goblin Attack Banner - Isolated Component */}
+      <GoblinAttackBanner isActive={isGoblinAttackActive} />
+      
       <MenuButton />
       <DevTriggerButton isActive={isGoblinAttackActive} onToggle={toggleGoblinAttack} />
       <ResetButton onReset={handleReset} />
@@ -888,15 +892,6 @@ const HomeDashboard = () => {
       {/* Container Globale degli Eventi */}
       <div className="fixed inset-0 z-[60] pointer-events-none">
         
-        {/* BANNER ATTACCO FISSO IN ALTO - z-[70] assicura visibilità sopra overlay rosso (z-[60]) */}
-        {isGoblinAttackActive && (
-          <div className="fixed top-0 left-1/2 -translate-x-1/2 z-[70] w-full pointer-events-none">
-            <div className="flex items-center justify-center bg-red-600/90 text-white py-3 font-black text-lg">
-              🚨 VILLAGGIO SOTTO ATTACCO! CLICCA SULLE SPADE PER DIFENDERE 🚨
-            </div>
-          </div>
-        )}
-        
         {/* 1. Overlay Rosso (Solo Visivo) */}
         {isGoblinAttackActive && (
           <div className={`absolute inset-0 transition-opacity duration-1000 ${
@@ -928,33 +923,7 @@ const HomeDashboard = () => {
         )}
       </div>
 
-      {/* Messaggio temporaneo attacco goblin */}
-      {goblinAttackMessage && (
-        <div
-          style={{
-            position: 'fixed',
-            top: '100px',
-            left: '50%',
-            transform: 'translateX(-50%)',
-            backgroundColor: 'rgba(255, 0, 0, 0.9)',
-            color: 'white',
-            padding: '15px 30px',
-            borderRadius: '8px',
-            fontSize: '16px',
-            fontWeight: 'bold',
-            zIndex: 2500,
-            animation: 'fadeInOut 3s ease-in-out',
-          }}
-        >
-          <style>{`
-            @keyframes fadeInOut {
-              0%, 100% { opacity: 0; }
-              10%, 90% { opacity: 1; }
-            }
-          `}</style>
-          {goblinAttackMessage}
-        </div>
-      )}
+      {/* Messaggio temporaneo attacco goblin - RIMOSSO: usare toasts invece */}
 
       <div
         ref={mapRef}
@@ -974,8 +943,7 @@ const HomeDashboard = () => {
               if (!loc.is_built) {
                 // Se miniera e attacco attivo, mostra messaggio
                 if (loc.buildingType === 'mine' && isGoblinAttackActive) {
-                  setGoblinAttackMessage('Sentiero bloccato dai Goblin! Sconfiggili per accedere alla miniera');
-                  setTimeout(() => setGoblinAttackMessage(''), 3000);
+                  showToast('info', '⚠️ Sentiero bloccato dai Goblin! Sconfiggili per accedere alla miniera', { duration: 3000 });
                   return;
                 }
                 setSelectedLocation(loc.id);
