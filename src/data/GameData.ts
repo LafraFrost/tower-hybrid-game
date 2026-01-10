@@ -114,8 +114,8 @@ export const GAME_DATA = {
   BASE_CARDS: [
     // Hero Signature Cards (2 per hero with matching comboSymbol)
     // Baluardo - Tank
-    { id: 'sig_baluardo_1', name: "Muro Vivente", paCost: 2, type: "Attack", comboSymbol: "Shield", value: 4, description: "Attacco difensivo del Baluardo" },
-    { id: 'sig_baluardo_2', name: "Fortezza Umana", paCost: 1, type: "Defense", comboSymbol: "Shield", value: 6, description: "Difesa impenetrabile" },
+    { id: 'sig_baluardo_1', name: "Onda d'Urto", paCost: 2, type: "Attack", comboSymbol: "Shield", value: 4, description: "Attacco difensivo del Baluardo" },
+    { id: 'sig_baluardo_2', name: "Muro di Carne", paCost: 1, type: "Defense", comboSymbol: "Shield", value: 6, description: "Difesa impenetrabile" },
     // Sentinella - Tank
     { id: 'sig_sentinella_1', name: "Guardia Assoluta", paCost: 2, type: "Defense", comboSymbol: "Shield", value: 5, description: "Posizione difensiva della Sentinella" },
     { id: 'sig_sentinella_2', name: "Controffensiva", paCost: 1, type: "Attack", comboSymbol: "Shield", value: 4, description: "Risposta letale" },

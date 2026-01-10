@@ -348,7 +348,7 @@ const TacticalScreen = () => {
     const newHand = battle.hand.filter(c => c !== card1 && c !== card2);
     const next = { ...battle, hand: newHand, discardPile: [...battle.discardPile, card1.id, card2.id] };
     
-    // Combo costs: signature 1 PA, common combo uses min PA cost
+    // Combo costs: signature combo costs only 1 PA (special reward), common combos cost min of both
     next.pa -= isSignature ? 1 : Math.min(card1.paCost, card2.paCost);
 
     // Calculate combo effect: for signature combos, multiply by 2.5; for regular, add 2 bonus
@@ -386,6 +386,15 @@ const TacticalScreen = () => {
     }
 
     next.feedbackMessage = isSignature ? `⭐ Mossa Speciale ${symbol} [x2.5]` : `🔥 Combo ${symbol} [+2 Bonus]`;
+    
+    // Store combo activation for giant text display
+    if (isSignature && selectedHero === 'Baluardo') {
+      // Giant combo text for Baluardo
+      setTimeout(() => {
+        appendLog(`🌪️ COMBO SPECIALE: ERUZIONE DI FURORE! 🌪️`);
+      }, 100);
+    }
+    
     setBattle(next);
   };
 
@@ -730,6 +739,34 @@ const TacticalScreen = () => {
 
       {battleNode && battle && (
         <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-40">
+          {/* Giant Combo Text Overlay */}
+          {battle.feedbackMessage?.includes('Mossa Speciale') && selectedHero === 'Baluardo' && (
+            <div className="fixed inset-0 flex items-center justify-center pointer-events-none z-50">
+              <style>{`
+                @keyframes comboBounce {
+                  0%, 100% { transform: scale(0.8); opacity: 0; }
+                  50% { transform: scale(1.2); opacity: 1; }
+                }
+              `}</style>
+              <div style={{ animation: 'comboBounce 1s ease-in-out' }}>
+                <h1 className="text-9xl font-black text-center" 
+                  style={{
+                    color: '#fbbf24',
+                    textShadow: '0 0 40px rgba(251,191,36,1), 0 0 80px rgba(251,191,36,0.8), 0 0 120px rgba(251,191,36,0.6)',
+                    lineHeight: '1'
+                  }}>
+                  COMBO!
+                </h1>
+                <p className="text-6xl font-black text-amber-300 text-center mt-4 drop-shadow-2xl" 
+                  style={{
+                    textShadow: '0 0 20px rgba(251,191,36,0.8), 0 0 40px rgba(251,191,36,0.6)'
+                  }}>
+                  ERUZIONE DI FURORE
+                </p>
+              </div>
+            </div>
+          )}
+          
           <div className="bg-slate-900 border border-white/10 rounded-2xl w-full max-w-3xl p-6 space-y-4 shadow-2xl">
             <div className="flex items-center justify-between">
               <div>
@@ -803,16 +840,16 @@ const TacticalScreen = () => {
                       onClick={() => useCard(card)}
                       className={cn(
                         "relative bg-gradient-to-br from-slate-800 to-slate-900 border-3 rounded-xl p-4 text-left transition-all duration-300",
-                        canPlay ? "hover:scale-110 hover:-translate-y-2 cursor-pointer" : "opacity-40 cursor-not-allowed",
-                        isSelected && "scale-110 -translate-y-2 ring-4 ring-white",
-                        // Golden glow ONLY if both signature cards are present
-                        isSignatureBothPresent && "shadow-[0_0_30px_rgba(251,191,36,0.8)]",
-                        isCompatible && symbolStyle && `${symbolStyle.border} ${symbolStyle.shadow} ${symbolStyle.glow} animate-pulse scale-105`
+                        canPlay ? "hover:scale-105 cursor-pointer" : "opacity-40 cursor-not-allowed",
+                        isSelected && "ring-4 ring-white"
                       )}
                       style={{ 
+                        width: '140px',
+                        height: '200px',
                         borderWidth: '3px',
                         borderColor: isSelected ? '#fff' : isSignatureBothPresent ? 'rgba(251,191,36,0.6)' : 'rgba(255,255,255,0.15)',
-                        minWidth: '140px'
+                        boxShadow: isSignatureBothPresent ? '0 0 30px rgba(251,191,36,0.8)' : (isCompatible && symbolStyle) ? symbolStyle.shadow : 'none',
+                        transform: isSelected ? 'scale(1.05)' : 'scale(1)'
                       }}
                     >
                       {/* PA Cost Badge */}
