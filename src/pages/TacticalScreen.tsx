@@ -90,13 +90,14 @@ const shuffleDeck = (deck: string[]): string[] => {
 };
 
 // Reshuffle function: takes discard pile and creates new shuffled deck
+// Uses Fisher-Yates algorithm for perfect randomization
 const reshuffle = (discardPile: string[]): { newDeck: string[], shouldLog: boolean } => {
   // If discard pile is empty, cannot reshuffle (all cards are in hand)
   if (discardPile.length === 0) {
     return { newDeck: [], shouldLog: false };
   }
 
-  // Fisher-Yates shuffle algorithm
+  // Fisher-Yates shuffle algorithm for unbiased randomization
   const cards = [...discardPile];
   for (let i = cards.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
@@ -106,6 +107,18 @@ const reshuffle = (discardPile: string[]): { newDeck: string[], shouldLog: boole
   return { newDeck: cards, shouldLog: true };
 };
 
+/**
+ * Draw cards from deck with automatic reshuffle when needed
+ * @param deck - Current deck (card IDs)
+ * @param count - Number of cards to draw
+ * @param discardPile - Current discard pile (card IDs)
+ * @returns Object with drawn cards, remaining deck, new discard pile, and reshuffle flag
+ * 
+ * Behavior:
+ * - If deck has enough cards: draw normally
+ * - If deck is empty: automatically reshuffle discard pile using Fisher-Yates
+ * - Each drawn card gets unique ID to prevent React rendering confusion
+ */
 const drawCards = (deck: string[], count: number, discardPile: string[] = []): { drawn: GameCard[], remaining: string[], newDiscard: string[], reshuffled: boolean } => {
   const drawn: GameCard[] = [];
   let remaining = [...deck];
@@ -560,23 +573,27 @@ const TacticalScreen = () => {
       return;
     }
 
-    // CRITICAL: Discard remaining hand cards before drawing new hand
+    // ========== DECK MANAGEMENT SYSTEM ==========
+    // Step 1: Sposta le carte rimaste in mano nella pila degli scarti
     const remainingHandIds = battle.hand.map(c => c.id);
     const updatedDiscardPile = [...battle.discardPile, ...remainingHandIds];
 
-    // Draw new hand with auto-reshuffle if needed
+    // Step 2-3: Pesca nuova mano (drawCards gestisce auto-reshuffle con Fisher-Yates)
+    // Se deck < 4 carte, drawCards rimescola automaticamente gli scarti nel mazzo
     const { drawn, remaining, newDiscard, reshuffled } = drawCards(battle.deck, 4, updatedDiscardPile);
     
+    // Step 4: Log del rimescolamento (se avvenuto)
     if (reshuffled) {
       appendLog("♻️ Mazzo rimescolato dalla pila degli scarti!");
     }
 
+    // Step 5: Aggiorna tutti gli stati in un colpo solo
     const refreshed: BattleState = {
       enemyHp: battle.enemyHp,
       playerHp: nextHp,
       playerShield: 0,
       baseDamage: battle.baseDamage,
-      pa: 3,
+      pa: 3, // Reset Punti Azione per nuovo turno
       turnBonus: "",
       damageMultiplier: 1,
       hand: drawn,
