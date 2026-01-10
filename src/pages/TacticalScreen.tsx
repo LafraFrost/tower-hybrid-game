@@ -13,6 +13,29 @@ const SYMBOL_COLORS: Record<ComboSymbol, { glow: string, shadow: string, border:
   Link: { glow: 'shadow-purple-500/70', shadow: 'shadow-lg', border: 'border-purple-400' },
 };
 
+// Hero Signature Combo Names
+const HERO_COMBO_NAMES: Record<HeroName, string> = {
+  Baluardo: 'ERUZIONE DI FURORE',
+  Sentinella: 'RITORSIONE TOTALE',
+  Ombra: 'COLPO DALL\'OBLIO',
+  Assassina: 'ESECUZIONE SILENZIOSA',
+  Cronomante: 'DOMINIO TEMPORALE',
+  Elementalista: 'SHOCK TERMICO',
+  Archivista: 'INTERVENTO DIVINO',
+  Mistica: 'ALLUCINAZIONE COLLETTIVA',
+  Ingegnere: 'PROTOCOLLO OVERDRIVE',
+  Predatore: 'IMBOSCATA MORTALE',
+};
+
+// Class-based color mappings for combo animations
+const CLASS_GLOW_COLORS: Record<string, { primary: string, shadow: string }> = {
+  Tank: { primary: '#06b6d4', shadow: 'rgba(6, 182, 212, 0.8)' }, // cyan
+  DPS: { primary: '#ef4444', shadow: 'rgba(239, 68, 68, 0.8)' }, // red
+  Control: { primary: '#a855f7', shadow: 'rgba(168, 85, 247, 0.8)' }, // purple
+  Support: { primary: '#22c55e', shadow: 'rgba(34, 197, 94, 0.8)' }, // green
+  Specialist: { primary: '#eab308', shadow: 'rgba(234, 179, 8, 0.8)' }, // yellow
+};
+
 type NodeType = "Combat" | "Event" | "Resource" | "Rest" | "Boss" | "Start";
 
 type Node = {
@@ -387,11 +410,11 @@ const TacticalScreen = () => {
 
     next.feedbackMessage = isSignature ? `⭐ Mossa Speciale ${symbol} [x2.5]` : `🔥 Combo ${symbol} [+2 Bonus]`;
     
-    // Store combo activation for giant text display
-    if (isSignature && selectedHero === 'Baluardo') {
-      // Giant combo text for Baluardo
+    // Log signature combo with hero-specific name
+    if (isSignature && selectedHero) {
+      const comboName = HERO_COMBO_NAMES[selectedHero as HeroName] || 'COMBO SPECIALE';
       setTimeout(() => {
-        appendLog(`🌪️ COMBO SPECIALE: ERUZIONE DI FURORE! 🌪️`);
+        appendLog(`🌟 ${comboName}! 🌟`);
       }, 100);
     }
     
@@ -750,33 +773,40 @@ const TacticalScreen = () => {
 
       {battleNode && battle && (
         <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-40">
-          {/* Giant Combo Text Overlay */}
-          {battle.feedbackMessage?.includes('Mossa Speciale') && selectedHero === 'Baluardo' && (
-            <div className="fixed inset-0 flex items-center justify-center pointer-events-none z-50">
-              <style>{`
-                @keyframes comboBounce {
-                  0%, 100% { transform: scale(0.8); opacity: 0; }
-                  50% { transform: scale(1.2); opacity: 1; }
-                }
-              `}</style>
-              <div style={{ animation: 'comboBounce 1s ease-in-out' }}>
-                <h1 className="text-9xl font-black text-center" 
-                  style={{
-                    color: '#fbbf24',
-                    textShadow: '0 0 40px rgba(251,191,36,1), 0 0 80px rgba(251,191,36,0.8), 0 0 120px rgba(251,191,36,0.6)',
-                    lineHeight: '1'
-                  }}>
-                  COMBO!
-                </h1>
-                <p className="text-6xl font-black text-amber-300 text-center mt-4 drop-shadow-2xl" 
-                  style={{
-                    textShadow: '0 0 20px rgba(251,191,36,0.8), 0 0 40px rgba(251,191,36,0.6)'
-                  }}>
-                  ERUZIONE DI FURORE
-                </p>
+          {/* Giant Combo Text Overlay - Dynamic for all heroes */}
+          {battle.feedbackMessage?.includes('Mossa Speciale') && selectedHero && (() => {
+            const heroProfile = HERO_PROFILES[selectedHero as HeroName];
+            const comboName = HERO_COMBO_NAMES[selectedHero as HeroName] || 'COMBO SPECIALE';
+            const classColors = CLASS_GLOW_COLORS[heroProfile.class];
+            
+            return (
+              <div className="fixed inset-0 flex items-center justify-center pointer-events-none z-50">
+                <style>{`
+                  @keyframes comboBounce {
+                    0%, 100% { transform: scale(0.8); opacity: 0; }
+                    50% { transform: scale(1.2); opacity: 1; }
+                  }
+                `}</style>
+                <div style={{ animation: 'comboBounce 1s ease-in-out' }}>
+                  <h1 className="text-9xl font-black text-center" 
+                    style={{
+                      color: classColors.primary,
+                      textShadow: `0 0 40px ${classColors.shadow}, 0 0 80px ${classColors.shadow}, 0 0 120px ${classColors.shadow}`,
+                      lineHeight: '1'
+                    }}>
+                    COMBO!
+                  </h1>
+                  <p className="text-6xl font-black text-center mt-4 drop-shadow-2xl" 
+                    style={{
+                      color: classColors.primary,
+                      textShadow: `0 0 20px ${classColors.shadow}, 0 0 40px ${classColors.shadow}`
+                    }}>
+                    {comboName}
+                  </p>
+                </div>
               </div>
-            </div>
-          )}
+            );
+          })()}
           
           <div className="bg-slate-900 border border-white/10 rounded-2xl w-full max-w-3xl p-6 space-y-4 shadow-2xl">
             <div className="flex items-center justify-between">
