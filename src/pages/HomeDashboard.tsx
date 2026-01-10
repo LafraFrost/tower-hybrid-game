@@ -180,6 +180,7 @@ const HomeDashboard = () => {
   const [repairTarget, setRepairTarget] = useState<any>(null);
   const [repairCost, setRepairCost] = useState<{ wood: number; stone: number; gold: number }>({ wood: 0, stone: 0, gold: 0 });
   const mapRef = useRef<HTMLDivElement>(null);
+  const defenseCheckDoneRef = useRef(false);
 
   type Toast = { id: number; type: 'success' | 'error' | 'warning' | 'info'; message: string; persistent?: boolean; duration?: number };
   const [toasts, setToasts] = useState<Toast[]>([]);
@@ -319,6 +320,16 @@ const HomeDashboard = () => {
       if (timer) window.clearInterval(timer);
     };
   }, []);
+
+  const handleStartDefense = () => {
+    // Clean state before starting defense mode
+    setIsDefending(false); // Ensure clean state
+    setTimeout(() => {
+      setIsDefending(true);
+      defenseCheckDoneRef.current = false; // Reset debounce flag
+      console.log('🛡️ Defense mode activated');
+    }, 0);
+  };
 
   const toggleGoblinAttack = async () => {
     try {
@@ -489,6 +500,7 @@ const HomeDashboard = () => {
   }, [isGoblinAttackActive]);
 
   // Hide red alert when no buildings under attack remain, and show camp triangle if mine not unlocked
+  // Debounced: runs only once after all buildings are defended/ruined, prevents loop
   useEffect(() => {
     const anyUnderAttack = locations.some((loc) => {
       const bt = normalizeBuildingType(loc);
@@ -498,15 +510,26 @@ const HomeDashboard = () => {
       const ruined = ruinedBuildings.includes(loc.name);
       return isGoblinAttackActive && built && !defended && !ruined;
     });
-    if (!anyUnderAttack) {
-      // Alert dialog removed; toast persists only while attack is active
-      // Also reset defending mode when done
-      if (isDefending) {
-        setIsDefending(false);
-        console.log('✅ All buildings defended/ruined - exiting defense mode');
+    
+    if (!anyUnderAttack && isGoblinAttackActive) {
+      // Execute defense check completion ONLY ONCE after all buildings handled
+      if (!defenseCheckDoneRef.current) {
+        defenseCheckDoneRef.current = true;
+        console.log('✅ All buildings defended/ruined - defense check complete (debounced)');
+        
+        // Reset defending mode when done
+        if (isDefending) {
+          setIsDefending(false);
+          console.log('✅ Exiting defense mode');
+        }
+      }
+    } else {
+      // Reset debounce flag if attack becomes active again
+      if (isGoblinAttackActive) {
+        defenseCheckDoneRef.current = false;
       }
     }
-  }, [locations, defendedBuildings, ruinedBuildings, isGoblinAttackActive, isDefending]);
+  }, [isGoblinAttackActive, defendedBuildings, ruinedBuildings, locations, isDefending]);
 
 
   const handleMouseDown = (id: number) => {
@@ -715,6 +738,8 @@ const HomeDashboard = () => {
     
     // Update Supabase game_locations to clear under_attack flag AND reset is_ruined
     const buildingLoc = locations.find((l) => l.name === buildingName);
+    let supabaseSuccess = true;
+    
     if (buildingLoc) {
       try {
         const { error } = await supabase
@@ -724,26 +749,42 @@ const HomeDashboard = () => {
         
         if (error) {
           console.warn(`⚠️ Supabase update failed for ${buildingName}:`, error);
+          supabaseSuccess = false;
         } else {
           console.log(`✅ Supabase updated for ${buildingName}`);
           // Refresh locations to reflect changes immediately
-          const { data } = await supabase.from('game_locations').select('*').order('id');
-          if (data) {
-            setLocations(data.map((loc: any) => ({
-              ...loc,
-              is_built: Boolean(loc.is_built),
-              buildingType: normalizeBuildingType(loc)
-            })));
+          try {
+            const { data } = await supabase.from('game_locations').select('*').order('id');
+            if (data) {
+              setLocations(data.map((loc: any) => ({
+                ...loc,
+                is_built: Boolean(loc.is_built),
+                buildingType: normalizeBuildingType(loc)
+              })));
+            }
+          } catch (refreshErr) {
+            console.warn(`⚠️ Failed to refresh locations:`, refreshErr);
           }
         }
       } catch (err) {
         console.warn(`⚠️ Supabase error for ${buildingName}:`, err);
+        supabaseSuccess = false;
       }
     }
     
-    // Reset combat state and defending mode
+    // Reset combat state and defending mode - ALWAYS, regardless of Supabase success
+    // Use setTimeout to ensure state is reset even if DB is slow
     setActiveMiniCombat(null);
     setIsDefending(false);
+    
+    // Fallback: if Supabase fails, still close after 2 seconds
+    if (!supabaseSuccess) {
+      setTimeout(() => {
+        console.log('⏰ Fallback: forcing state reset after Supabase timeout');
+        setActiveMiniCombat(null);
+        setIsDefending(false);
+      }, 2000);
+    }
     
     // Show victory toast feedback
     showToast('success', `✅ ${buildingName} è stato difeso!`, { duration: 3000 });
@@ -761,6 +802,8 @@ const HomeDashboard = () => {
     
     // Update Supabase game_locations to mark as ruined
     const buildingLoc = locations.find((l) => l.name === buildingName);
+    let supabaseSuccess = true;
+    
     if (buildingLoc) {
       try {
         const { error } = await supabase
@@ -770,26 +813,41 @@ const HomeDashboard = () => {
         
         if (error) {
           console.warn(`⚠️ Supabase update failed for ${buildingName}:`, error);
+          supabaseSuccess = false;
         } else {
           console.log(`💀 Supabase updated for ${buildingName}`);
           // Refresh locations to reflect changes immediately
-          const { data } = await supabase.from('game_locations').select('*').order('id');
-          if (data) {
-            setLocations(data.map((loc: any) => ({
-              ...loc,
-              is_built: Boolean(loc.is_built),
-              buildingType: normalizeBuildingType(loc)
-            })));
+          try {
+            const { data } = await supabase.from('game_locations').select('*').order('id');
+            if (data) {
+              setLocations(data.map((loc: any) => ({
+                ...loc,
+                is_built: Boolean(loc.is_built),
+                buildingType: normalizeBuildingType(loc)
+              })));
+            }
+          } catch (refreshErr) {
+            console.warn(`⚠️ Failed to refresh locations:`, refreshErr);
           }
         }
       } catch (err) {
         console.warn(`⚠️ Supabase error for ${buildingName}:`, err);
+        supabaseSuccess = false;
       }
     }
     
-    // Reset combat state and defending mode
+    // Reset combat state and defending mode - ALWAYS, regardless of Supabase success
     setActiveMiniCombat(null);
     setIsDefending(false);
+    
+    // Fallback: if Supabase fails, still close after 2 seconds
+    if (!supabaseSuccess) {
+      setTimeout(() => {
+        console.log('⏰ Fallback: forcing state reset after Supabase timeout');
+        setActiveMiniCombat(null);
+        setIsDefending(false);
+      }, 2000);
+    }
     
     // Show defeat toast feedback
     showToast('error', `❌ ${buildingName} è stato distrutto!`, { duration: 3000 });
@@ -966,7 +1024,7 @@ const HomeDashboard = () => {
               <h2 className="text-4xl font-black text-red-500 mb-4">ATTACCO GOBLIN!</h2>
               <p className="text-white mb-6">Le tue costruzioni sono in pericolo!</p>
               <button 
-                onClick={() => setIsDefending(true)}
+                onClick={handleStartDefense}
                 className="bg-red-600 hover:bg-red-700 text-white px-10 py-4 font-bold uppercase"
               >
                 Difendi il Villaggio
