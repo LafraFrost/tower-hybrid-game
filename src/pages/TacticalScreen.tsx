@@ -272,7 +272,22 @@ const nodeMap = new Map(nodes.map((n) => [n.id, n] as const));
 
 const STORAGE_KEY = "soloMapProgress_v1";
 
-const TacticalScreen = () => {
+// Props for Village Defense Mode
+interface TacticalScreenProps {
+  isVillageDefenseMode?: boolean;
+  buildingName?: string;
+  onVillageVictory?: (buildingName: string) => void;
+  onVillageDefeat?: (buildingName: string) => void;
+  onVillageClose?: () => void;
+}
+
+const TacticalScreen = ({ 
+  isVillageDefenseMode = false, 
+  buildingName = '',
+  onVillageVictory,
+  onVillageDefeat,
+  onVillageClose
+}: TacticalScreenProps = {}) => {
   const { selectedHero } = useHero();
   const [, setLocation] = useLocation();
   const [currentNode, setCurrentNode] = useState<number>(1);
@@ -339,8 +354,24 @@ const TacticalScreen = () => {
     })();
   }, [selectedHero]);
 
-  // Direct combat trigger from Village: read targetBuilding from URL and auto-start a combat
+  // Direct combat trigger: Village Defense Mode or URL targetBuilding param
   useEffect(() => {
+    // Priority 1: Props-based village defense mode
+    if (isVillageDefenseMode && buildingName) {
+      setTargetBuilding(buildingName);
+      const syntheticNode: Node = {
+        id: 999,
+        type: "Combat",
+        label: `Difesa: ${buildingName}`,
+        x: 640,
+        y: 320,
+        connections: [],
+      };
+      startBattle(syntheticNode);
+      return;
+    }
+    
+    // Priority 2: URL-based legacy system
     const params = new URLSearchParams(window.location.search);
     const tb = params.get('targetBuilding');
     if (tb) {
@@ -356,7 +387,7 @@ const TacticalScreen = () => {
       };
       startBattle(syntheticNode);
     }
-  }, []);
+  }, [isVillageDefenseMode, buildingName]);
 
   // Persist progress on change (both DB and local with consistency check)
   useEffect(() => {
@@ -648,7 +679,16 @@ const TacticalScreen = () => {
 
   const finishBattle = async (victory: boolean, node: Node) => {
     if (!victory) {
-      // If this was a direct building combat, mark building as ruined and return to Village
+      // Village Defense Mode: use callback
+      if (isVillageDefenseMode && buildingName && onVillageDefeat) {
+        appendLog(`Sconfitta nella difesa di ${buildingName}. Edificio in rovina.`);
+        setBattleNode(null);
+        setBattle(null);
+        setTimeout(() => onVillageDefeat(buildingName), 1500);
+        return;
+      }
+      
+      // Legacy URL-based building defense
       if (targetBuilding) {
         try {
           const raw = localStorage.getItem('ruined_buildings');
@@ -669,6 +709,15 @@ const TacticalScreen = () => {
     }
 
     appendLog(`Vittoria su ${node.label}.`);
+    
+    // Village Defense Mode Victory: use callback with Supabase update
+    if (isVillageDefenseMode && buildingName && onVillageVictory) {
+      setBattleNode(null);
+      setBattle(null);
+      setTimeout(() => onVillageVictory(buildingName), 1500);
+      return;
+    }
+    
     const updated = new Set(visited);
     updated.add(node.id);
     setVisited(updated);
@@ -894,7 +943,10 @@ const TacticalScreen = () => {
   }
 
   return (
-    <div className="min-h-screen bg-slate-950 text-white relative overflow-hidden">
+    <div className={cn(
+      "min-h-screen text-white relative overflow-hidden",
+      isVillageDefenseMode ? "bg-black/95 fixed inset-0 z-[300] flex items-center justify-center" : "bg-slate-950"
+    )}>
       {/* Reshuffle Toast Message */}
       {showReshuffleMsg && (
         <div className="fixed inset-0 flex items-center justify-center z-50 pointer-events-none animate-in fade-in zoom-in duration-300">
@@ -906,15 +958,20 @@ const TacticalScreen = () => {
         </div>
       )}
       
-      <div
-        className="absolute inset-0 pointer-events-none"
-        style={{
-          backgroundImage:
-            "radial-gradient(circle at 20% 30%, rgba(14,165,233,0.18), transparent 35%), radial-gradient(circle at 80% 40%, rgba(236,72,153,0.14), transparent 40%), radial-gradient(circle at 50% 80%, rgba(52,211,153,0.12), transparent 40%)",
-        }}
-      />
+      {/* Background gradient - hidden in village defense mode */}
+      {!isVillageDefenseMode && (
+        <div
+          className="absolute inset-0 pointer-events-none"
+          style={{
+            backgroundImage:
+              "radial-gradient(circle at 20% 30%, rgba(14,165,233,0.18), transparent 35%), radial-gradient(circle at 80% 40%, rgba(236,72,153,0.14), transparent 40%), radial-gradient(circle at 50% 80%, rgba(52,211,153,0.12), transparent 40%)",
+          }}
+        />
+      )}
 
-      <div className="relative max-w-6xl mx-auto py-8 px-6 space-y-6">
+      {/* Map UI - hidden in village defense mode */}
+      {!isVillageDefenseMode && (
+        <div className="relative max-w-6xl mx-auto py-8 px-6 space-y-6">
         <div className="flex items-center justify-between">
           <div>
             <p className="text-xs uppercase tracking-[0.25em] text-cyan-300/80">Caverna Goblin</p>
@@ -1054,9 +1111,14 @@ const TacticalScreen = () => {
           </div>
         </div>
       </div>
+      )}
 
+      {/* Battle Overlay - shown in both modes */}
       {battleNode && battle && (
-        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-40">
+        <div className={cn(
+          "fixed inset-0 flex items-center justify-center z-40",
+          isVillageDefenseMode ? "bg-black/90 backdrop-blur-md" : "bg-black/70 backdrop-blur-sm"
+        )}>
           {/* Giant Combo Text Overlay - Dynamic for all heroes */}
           {battle.feedbackMessage?.includes('Mossa Speciale') && selectedHero && (() => {
             const heroProfile = HERO_PROFILES[selectedHero as HeroName];
@@ -1105,13 +1167,16 @@ const TacticalScreen = () => {
                 )}
               </div>
               <button
-                className="px-3 py-2 text-sm rounded-md bg-white/10 border border-white/20"
+                className="px-3 py-2 text-sm rounded-md bg-white/10 border border-white/20 hover:bg-white/20 transition-colors"
                 onClick={() => {
                   setBattleNode(null);
                   setBattle(null);
+                  if (isVillageDefenseMode && onVillageClose) {
+                    onVillageClose();
+                  }
                 }}
               >
-                Chiudi
+                {isVillageDefenseMode ? '❌ Abbandona' : 'Chiudi'}
               </button>
             </div>
 

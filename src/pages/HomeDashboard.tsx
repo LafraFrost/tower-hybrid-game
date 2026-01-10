@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { supabase } from '@/lib/supabaseClient';
-import { VillageDefenseCombat } from '@/components/VillageDefenseCombat';
+import TacticalScreen from '@/pages/TacticalScreen';
 import { GoblinAttackBanner } from '@/components/GoblinAttackBanner';
 
 const buildingAssets: Record<string, string> = {
@@ -850,13 +850,14 @@ const HomeDashboard = () => {
     <div
       style={{ width: '100vw', height: '100vh', display: 'flex', justifyContent: 'center', alignItems: 'center', backgroundColor: '#1a1a1a', position: 'relative' }}
     >
-      {/* Village Defense Combat Overlay - Card-based combat system */}
+      {/* Tactical Card Battle System for Village Defense */}
       {activeMiniCombat && (
-        <VillageDefenseCombat
+        <TacticalScreen
+          isVillageDefenseMode={true}
           buildingName={activeMiniCombat}
-          onVictory={() => handleMiniCombatVictory(activeMiniCombat)}
-          onDefeat={() => handleMiniCombatDefeat(activeMiniCombat)}
-          onClose={() => setActiveMiniCombat(null)}
+          onVillageVictory={(buildingName) => handleMiniCombatVictory(buildingName)}
+          onVillageDefeat={(buildingName) => handleMiniCombatDefeat(buildingName)}
+          onVillageClose={() => setActiveMiniCombat(null)}
         />
       )}
       
