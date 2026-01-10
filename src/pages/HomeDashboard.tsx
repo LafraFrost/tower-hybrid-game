@@ -165,17 +165,22 @@ const HomeDashboard = () => {
 
   const prevResRef = useRef<{ wood: number; stone: number; gold: number }>({ wood: 0, stone: 0, gold: 0 });
   const firstResLoadRef = useRef(true);
+  const initTimeRef = useRef<number>(Date.now());
   useEffect(() => {
     const prev = prevResRef.current;
     if (firstResLoadRef.current) {
       firstResLoadRef.current = false;
     } else {
-      const dw = (resources.wood ?? 0) - (prev.wood ?? 0);
-      const ds = (resources.stone ?? 0) - (prev.stone ?? 0);
-      const dg = (resources.gold ?? 0) - (prev.gold ?? 0);
-      if (dw !== 0) showToast(dw > 0 ? 'success' : 'error', `🪵 ${dw > 0 ? '+' : ''}${dw}`);
-      if (ds !== 0) showToast(ds > 0 ? 'success' : 'error', `🪨 ${ds > 0 ? '+' : ''}${ds}`);
-      if (dg !== 0) showToast(dg > 0 ? 'success' : 'error', `💰 ${dg > 0 ? '+' : ''}${dg}`);
+      // Skip resource toasts for 2 seconds after page load
+      const elapsed = Date.now() - initTimeRef.current;
+      if (elapsed > 2000) {
+        const dw = (resources.wood ?? 0) - (prev.wood ?? 0);
+        const ds = (resources.stone ?? 0) - (prev.stone ?? 0);
+        const dg = (resources.gold ?? 0) - (prev.gold ?? 0);
+        if (dw !== 0) showToast(dw > 0 ? 'success' : 'error', `🪵 ${dw > 0 ? '+' : ''}${dw}`, { duration: 2000 });
+        if (ds !== 0) showToast(ds > 0 ? 'success' : 'error', `🪨 ${ds > 0 ? '+' : ''}${ds}`, { duration: 2000 });
+        if (dg !== 0) showToast(dg > 0 ? 'success' : 'error', `💰 ${dg > 0 ? '+' : ''}${dg}`, { duration: 2000 });
+      }
     }
     prevResRef.current = { wood: resources.wood ?? 0, stone: resources.stone ?? 0, gold: resources.gold ?? 0 };
   }, [resources]);
@@ -684,16 +689,48 @@ const HomeDashboard = () => {
       <DevTriggerButton isActive={isGoblinAttackActive} onToggle={toggleGoblinAttack} />
       <ResourceBar resources={resources} />
 
-      {/* Toast container */}
-      <div style={{ position: 'fixed', top: '10px', left: '50%', transform: 'translateX(-50%)', zIndex: 5000, display: 'flex', flexDirection: 'column', gap: '8px', pointerEvents: 'none' }}>
-        {toasts.map((t) => (
-          <div key={t.id} style={{ pointerEvents: 'auto', backgroundColor: t.type === 'error' ? 'rgba(220,38,38,0.9)' : t.type === 'warning' ? 'rgba(234,179,8,0.9)' : t.type === 'success' ? 'rgba(34,197,94,0.9)' : 'rgba(59,130,246,0.9)', color: 'white', padding: '10px 16px', borderRadius: '10px', border: '2px solid rgba(255,255,255,0.25)', boxShadow: '0 6px 20px rgba(0,0,0,0.4)', fontWeight: 800, minWidth: '380px', textAlign: 'center' }}>
-            {t.message}
-            {t.persistent && (
-              <button onClick={() => dismissToast(t.id)} style={{ marginLeft: '12px', backgroundColor: 'transparent', border: 'none', color: '#fff', cursor: 'pointer', fontWeight: 900 }}>×</button>
-            )}
-          </div>
-        ))}
+      {/* Toast container - bottom-right corner */}
+      <div style={{ position: 'fixed', bottom: '20px', right: '20px', zIndex: 5000, display: 'flex', flexDirection: 'column', gap: '8px', pointerEvents: 'none', maxWidth: '400px' }}>
+        {toasts.map((t) => {
+          const isResourceToast = ['🪵', '🪨', '💰'].some(emoji => t.message.includes(emoji));
+          return (
+            <div
+              key={t.id}
+              style={{
+                pointerEvents: t.persistent ? 'auto' : 'none',
+                backgroundColor: t.type === 'error' ? 'rgba(220,38,38,0.9)' : t.type === 'warning' ? 'rgba(234,179,8,0.9)' : t.type === 'success' ? 'rgba(34,197,94,0.9)' : 'rgba(59,130,246,0.9)',
+                color: 'white',
+                padding: isResourceToast ? '6px 10px' : '10px 16px',
+                borderRadius: '8px',
+                border: '2px solid rgba(255,255,255,0.25)',
+                boxShadow: '0 4px 12px rgba(0,0,0,0.4)',
+                fontWeight: 700,
+                fontSize: isResourceToast ? '12px' : '14px',
+                textAlign: 'center',
+                minWidth: isResourceToast ? 'auto' : '280px',
+              }}
+            >
+              {t.message}
+              {t.persistent && (
+                <button
+                  onClick={() => dismissToast(t.id)}
+                  style={{
+                    marginLeft: '10px',
+                    backgroundColor: 'transparent',
+                    border: 'none',
+                    color: '#fff',
+                    cursor: 'pointer',
+                    fontWeight: 900,
+                    fontSize: '16px',
+                    padding: '0',
+                  }}
+                >
+                  ×
+                </button>
+              )}
+            </div>
+          );
+        })}
       </div>
 
       {/* Overlay Attacco Goblin - Fase 2: Filtro leggero con bordo pulsante (pointer-events-none) */}
