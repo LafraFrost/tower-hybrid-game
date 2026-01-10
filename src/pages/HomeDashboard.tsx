@@ -2,8 +2,6 @@ import React, { useEffect, useRef, useState } from 'react';
 import { useLocation } from 'wouter';
 import {
   AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
   AlertDialogContent,
   AlertDialogDescription,
   AlertDialogTitle,
@@ -141,7 +139,6 @@ const HomeDashboard = () => {
   const [mapImage, setMapImage] = useState('/assets/casa.jpg');
   const [isGoblinAttackActive, setIsGoblinAttackActive] = useState(false);
   const [goblinAttackMessage, setGoblinAttackMessage] = useState('');
-  const [showGoblinAlert, setShowGoblinAlert] = useState(false);
   const [defendedBuildings, setDefendedBuildings] = useState<string[]>([]);
   const [ruinedBuildings, setRuinedBuildings] = useState<string[]>([]);
   const [showCampPopup, setShowCampPopup] = useState(false);
@@ -149,6 +146,40 @@ const HomeDashboard = () => {
   const [repairTarget, setRepairTarget] = useState<any>(null);
   const [repairCost, setRepairCost] = useState<{ wood: number; stone: number; gold: number }>({ wood: 0, stone: 0, gold: 0 });
   const mapRef = useRef<HTMLDivElement>(null);
+
+  type Toast = { id: number; type: 'success' | 'error' | 'warning' | 'info'; message: string; persistent?: boolean; duration?: number };
+  const [toasts, setToasts] = useState<Toast[]>([]);
+  const [goblinToastId, setGoblinToastId] = useState<number | null>(null);
+  const showToast = (type: Toast['type'], message: string, options?: { duration?: number; persistent?: boolean }) => {
+    const id = Date.now() + Math.floor(Math.random() * 1000);
+    const duration = options?.duration ?? 3000;
+    const persistent = options?.persistent ?? false;
+    setToasts((prev) => [{ id, type, message, persistent, duration }, ...prev]);
+    if (!persistent && duration > 0) {
+      window.setTimeout(() => {
+        setToasts((prev) => prev.filter((t) => t.id !== id));
+      }, duration);
+    }
+    return id;
+  };
+  const dismissToast = (id: number) => setToasts((prev) => prev.filter((t) => t.id !== id));
+
+  const prevResRef = useRef<{ wood: number; stone: number; gold: number }>({ wood: 0, stone: 0, gold: 0 });
+  const firstResLoadRef = useRef(true);
+  useEffect(() => {
+    const prev = prevResRef.current;
+    if (firstResLoadRef.current) {
+      firstResLoadRef.current = false;
+    } else {
+      const dw = (resources.wood ?? 0) - (prev.wood ?? 0);
+      const ds = (resources.stone ?? 0) - (prev.stone ?? 0);
+      const dg = (resources.gold ?? 0) - (prev.gold ?? 0);
+      if (dw !== 0) showToast(dw > 0 ? 'success' : 'error', `🪵 ${dw > 0 ? '+' : ''}${dw}`);
+      if (ds !== 0) showToast(ds > 0 ? 'success' : 'error', `🪨 ${ds > 0 ? '+' : ''}${ds}`);
+      if (dg !== 0) showToast(dg > 0 ? 'success' : 'error', `💰 ${dg > 0 ? '+' : ''}${dg}`);
+    }
+    prevResRef.current = { wood: resources.wood ?? 0, stone: resources.stone ?? 0, gold: resources.gold ?? 0 };
+  }, [resources]);
 
   const loadLocations = React.useCallback(async () => {
     console.log('🔍 Loading locations from database...');
@@ -220,10 +251,10 @@ const HomeDashboard = () => {
     }
   }, []);
 
-  // Cambia sfondo in base all'ora (DB → fallback locale)
+  // Cambia sfondo in base all'ora (solo locale per evitare crash RPC)
   useEffect(() => {
     let timer: number | undefined;
-    const pickImage = async () => {
+    const pickImage = () => {
       // Optional override via query param: ?theme=day or ?theme=night
       const params = new URLSearchParams(window.location.search);
       const themeOverride = params.get('theme');
@@ -233,29 +264,11 @@ const HomeDashboard = () => {
         setMapImage(forced);
         return;
       }
-
-      try {
-        const { data, error } = await supabase.rpc('get_italy_hour');
-        let hour: number;
-        if (!error && typeof data === 'number') {
-          hour = data;
-          console.log('🕒 Supabase (Europe/Rome) hour:', hour);
-        } else {
-          hour = new Date().getHours();
-          console.log('🕒 Fallback local hour:', hour, error?.message);
-        }
-        const isDay = hour >= 8 && hour < 20;
-        const nextImg = isDay ? '/assets/casa.jpg' : '/assets/casa_notte.jpg';
-        console.log('🖼️ Background set to:', nextImg);
-        setMapImage(nextImg);
-      } catch (e) {
-        const hour = new Date().getHours();
-        const isDay = hour >= 8 && hour < 20;
-        console.warn('⚠️ Time fetch failed, using local:', e);
-        const nextImg = isDay ? '/assets/casa.jpg' : '/assets/casa_notte.jpg';
-        console.log('🖼️ Background set (fallback) to:', nextImg);
-        setMapImage(nextImg);
-      }
+      const hour = new Date().getHours();
+      const isDay = hour >= 8 && hour < 20;
+      const nextImg = isDay ? '/assets/casa.jpg' : '/assets/casa_notte.jpg';
+      console.log('🖼️ Background set to:', nextImg);
+      setMapImage(nextImg);
     };
     pickImage();
     timer = window.setInterval(pickImage, 60_000);
@@ -303,7 +316,6 @@ const HomeDashboard = () => {
       // Reset goblin attack message and alert when disabling
       if (!newStatus) {
         setGoblinAttackMessage('');
-        setShowGoblinAlert(false);
       }
       
       console.log('✅ Goblin attack status updated in Supabase');
@@ -346,21 +358,33 @@ const HomeDashboard = () => {
     // Also try to load from Supabase user_resources
     const loadFromSupabase = async () => {
       try {
-        const { data, error } = await supabase
+        const { data: resData, error: resErr } = await supabase
           .from('user_resources')
-          .select('wood, stone, gold, is_mine_unlocked')
+          .select('wood, stone, gold')
           .eq('user_id', 1)
           .maybeSingle();
 
-        if (!error && data) {
-          console.log('✅ Resources loaded from Supabase:', data);
+        if (!resErr && resData) {
+          console.log('✅ Resources loaded from Supabase:', resData);
           setResources({ 
-            wood: data.wood || 0, 
-            stone: data.stone || 0, 
-            gold: data.gold || 0 
+            wood: resData.wood || 0, 
+            stone: resData.stone || 0, 
+            gold: resData.gold || 0 
           });
-          setIsMineUnlocked(!!data.is_mine_unlocked);
-          console.log('🔓 Mine unlock status:', !!data.is_mine_unlocked);
+        }
+        // Fetch mine unlock status separately to avoid column issues
+        try {
+          const { data: unlockData, error: unlockErr } = await supabase
+            .from('user_resources')
+            .select('is_mine_unlocked')
+            .eq('user_id', 1)
+            .maybeSingle();
+          if (!unlockErr && unlockData) {
+            setIsMineUnlocked(!!unlockData.is_mine_unlocked);
+            console.log('🔓 Mine unlock status:', !!unlockData.is_mine_unlocked);
+          }
+        } catch (e) {
+          console.warn('is_mine_unlocked not available in user_resources; ignoring.', e);
         }
       } catch (err) {
         console.error('Error loading from Supabase:', err);
@@ -408,11 +432,20 @@ const HomeDashboard = () => {
     };
   }, []);
 
-  // Quando attacco goblin si attiva, mostra l'alert
+  // Quando attacco goblin si attiva, mostra un Toast persistente
   useEffect(() => {
     if (isGoblinAttackActive) {
-      console.log('🚨 Goblin attack activated! Showing alert dialog');
-      setShowGoblinAlert(true);
+      console.log('🚨 Goblin attack activated! Showing toast');
+      if (goblinToastId == null) {
+        const id = Date.now();
+        setGoblinToastId(id);
+        setToasts((prev) => [{ id, type: 'warning', message: '⚠️ VILLAGGIO SOTTO ATTACCO! Difendi le tue costruzioni!', persistent: true }, ...prev]);
+      }
+    } else {
+      if (goblinToastId != null) {
+        dismissToast(goblinToastId);
+        setGoblinToastId(null);
+      }
     }
   }, [isGoblinAttackActive]);
 
@@ -427,12 +460,11 @@ const HomeDashboard = () => {
       return isGoblinAttackActive && built && !defended && !ruined;
     });
     if (!anyUnderAttack) {
-      setShowGoblinAlert(false);
+      // Alert dialog removed; toast persists only while attack is active
     }
   }, [locations, defendedBuildings, ruinedBuildings, isGoblinAttackActive]);
 
   const handleDefend = () => {
-    setShowGoblinAlert(false);
     setLocation("/solo");
   };
 
@@ -463,7 +495,7 @@ const HomeDashboard = () => {
 
       // Check if it's the mine and it's not unlocked yet
       if (loc.buildingType === 'mine' && !isMineUnlocked) {
-        alert('🔒 La Miniera è bloccata! Devi sconfiggere il Boss del Nodo 22 nella Mappa Tattica per sbloccarla.');
+        showToast('warning', '🔒 La Miniera è bloccata! Sconfiggi il Boss del Nodo 22 per sbloccarla.', { duration: 4000 });
         setSelectedLocation(null);
         return;
       }
@@ -485,7 +517,7 @@ const HomeDashboard = () => {
         (resources.stone ?? 0) < requiredStone ||
         (resources.gold ?? 0) < requiredGold
       ) {
-        alert(`Risorse insufficienti! Servono: ${requiredWood} Legno, ${requiredStone} Pietra, ${requiredGold} Oro`);
+        showToast('error', `❌ Risorse insufficienti! Servono: ${requiredWood} Legno, ${requiredStone} Pietra, ${requiredGold} Oro`, { duration: 5000 });
         return;
       }
 
@@ -512,10 +544,10 @@ const HomeDashboard = () => {
       }));
       
       setSelectedLocation(null);
-      alert(`${loc.name} costruito con successo!`);
+      showToast('success', `🛠️ ${loc.name} costruito con successo!`, { duration: 3000 });
     } catch (err) {
       console.error('Errore build:', err);
-      alert('Errore durante la costruzione');
+      showToast('error', '❌ Errore durante la costruzione', { duration: 4000 });
     }
   };
 
@@ -542,7 +574,7 @@ const HomeDashboard = () => {
     // Check local resources
     const hasEnough = (resources.wood ?? 0) >= wood && (resources.stone ?? 0) >= stone && (resources.gold ?? 0) >= gold;
     if (!hasEnough) {
-      alert(`Risorse insufficienti per riparare ${repairTarget.name}. Servono: ${wood} Legno, ${stone} Pietra, ${gold} Oro.`);
+      showToast('error', `❌ Risorse insufficienti per riparare ${repairTarget.name}. Servono: ${wood} Legno, ${stone} Pietra, ${gold} Oro.`, { duration: 5000 });
       return;
     }
 
@@ -582,18 +614,11 @@ const HomeDashboard = () => {
       setRuinedBuildings(next);
     } catch {}
 
-    alert(`${repairTarget.name} riparato con successo! Bonus passivi riattivati.`);
+    showToast('success', `🛠️ ${repairTarget.name} riparato correttamente! Bonus passivi riattivati.`, { duration: 3000 });
     setShowRepairPopup(false);
     setRepairTarget(null);
   };
 
-  const handleBuildClick = (loc: any) => {
-    setSelectedLocation(loc.id);
-    handleBuildRequest(loc).catch((err) => {
-      console.error('Errore build:', err);
-      alert('Errore nella richiesta di costruzione');
-    });
-  };
 
   const handleMouseMove = (e: React.MouseEvent) => {
     if (DISABLE_BUILDING_DRAG || draggingId === null || !mapRef.current) return;
@@ -648,6 +673,18 @@ const HomeDashboard = () => {
       <DevTriggerButton isActive={isGoblinAttackActive} onToggle={toggleGoblinAttack} />
       <ResourceBar resources={resources} />
 
+      {/* Toast container */}
+      <div style={{ position: 'fixed', top: '10px', left: '50%', transform: 'translateX(-50%)', zIndex: 5000, display: 'flex', flexDirection: 'column', gap: '8px', pointerEvents: 'none' }}>
+        {toasts.map((t) => (
+          <div key={t.id} style={{ pointerEvents: 'auto', backgroundColor: t.type === 'error' ? 'rgba(220,38,38,0.9)' : t.type === 'warning' ? 'rgba(234,179,8,0.9)' : t.type === 'success' ? 'rgba(34,197,94,0.9)' : 'rgba(59,130,246,0.9)', color: 'white', padding: '10px 16px', borderRadius: '10px', border: '2px solid rgba(255,255,255,0.25)', boxShadow: '0 6px 20px rgba(0,0,0,0.4)', fontWeight: 800, minWidth: '380px', textAlign: 'center' }}>
+            {t.message}
+            {t.persistent && (
+              <button onClick={() => dismissToast(t.id)} style={{ marginLeft: '12px', backgroundColor: 'transparent', border: 'none', color: '#fff', cursor: 'pointer', fontWeight: 900 }}>×</button>
+            )}
+          </div>
+        ))}
+      </div>
+
       {/* Overlay Attacco Goblin (solo background pulsante, NO testo qui) */}
       {isGoblinAttackActive && (
         <div
@@ -673,7 +710,7 @@ const HomeDashboard = () => {
       )}
 
       {/* AlertDialog per attacco goblin */}
-      <AlertDialog open={showGoblinAlert} onOpenChange={setShowGoblinAlert}>
+      <AlertDialog open={false} onOpenChange={() => {}}>
         <AlertDialogContent className="bg-gradient-to-b from-red-950 to-black border-2 border-red-500 max-w-md">
           <AlertDialogTitle className="text-2xl text-red-400 flex items-center gap-2">
             <Swords className="w-6 h-6" />
@@ -736,7 +773,7 @@ const HomeDashboard = () => {
         onMouseMove={handleMouseMove}
         onMouseUp={handleMouseUp}
         onMouseLeave={handleMouseUp}
-        style={{ position: 'relative', width: '1024px', height: '1024px', userSelect: 'none', pointerEvents: isGoblinAttackActive ? 'none' : 'auto', cursor: draggingId !== null ? 'grabbing' : 'default' }}
+        style={{ position: 'relative', width: '1024px', height: '1024px', userSelect: 'none', pointerEvents: 'auto', cursor: draggingId !== null ? 'grabbing' : 'default' }}
       >
         <img src={mapImage} style={{ width: '100%', height: '100%', pointerEvents: 'none' }} alt="Mappa" />
 
