@@ -119,6 +119,47 @@ const DevTriggerButton = ({ isActive, onToggle }: { isActive: boolean; onToggle:
   </button>
 );
 
+const ResetButton = ({ onReset }: { onReset: () => void }) => (
+  <button 
+    onClick={onReset}
+    style={{
+      position: 'absolute',
+      bottom: '20px',
+      right: '20px',
+      opacity: 0.85,
+      fontSize: '14px',
+      padding: '10px 14px',
+      backgroundColor: '#dc2626',
+      color: 'white',
+      border: '2px solid #991b1b',
+      borderRadius: '50%',
+      width: '50px',
+      height: '50px',
+      cursor: 'pointer',
+      zIndex: 2001,
+      transition: 'all 0.3s',
+      fontWeight: 'bold',
+      pointerEvents: 'auto',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+    }}
+    onMouseEnter={(e) => {
+      e.currentTarget.style.opacity = '1';
+      e.currentTarget.style.boxShadow = '0 0 20px rgba(220, 38, 38, 0.8)';
+      e.currentTarget.style.transform = 'scale(1.1)';
+    }}
+    onMouseLeave={(e) => {
+      e.currentTarget.style.opacity = '0.85';
+      e.currentTarget.style.boxShadow = 'none';
+      e.currentTarget.style.transform = 'scale(1)';
+    }}
+    title="Reset Totale - Cancella tutti i progressi"
+  >
+    🗑️
+  </button>
+);
+
 
 
 const HomeDashboard = () => {
@@ -698,6 +739,91 @@ const HomeDashboard = () => {
     console.log('💀 Mini combat defeat:', buildingName);
   };
 
+  const handleReset = async () => {
+    if (!window.confirm('🚨 ATTENZIONE! 🚨\n\nSei SICURO? Questo cancellerà TUTTI i progressi del villaggio e del personaggio!\n\nNon potrai recuperare i dati.')) {
+      return;
+    }
+
+    console.log('🌪️ Starting Great Wipe...');
+
+    // 1. Clear localStorage
+    const keysToDelete = [
+      'soloMapProgress_v1',
+      'tower_hybrid_hero_state',
+      'ruined_buildings',
+      'defended_buildings',
+      'is_defending',
+      'is_mine_unlocked',
+    ];
+    keysToDelete.forEach(key => {
+      try {
+        localStorage.removeItem(key);
+        console.log(`✓ Deleted localStorage: ${key}`);
+      } catch {}
+    });
+
+    // 2. Clear Supabase
+    try {
+      // Reset resources to initial values
+      const { error: resError } = await supabase
+        .from('user_resources')
+        .update({ 
+          wood: 0,
+          stone: 50,
+          gold: 0,
+          is_mine_unlocked: false 
+        })
+        .eq('user_id', 1);
+
+      if (resError) {
+        console.warn('⚠️ Could not reset resources:', resError);
+      } else {
+        console.log('✓ Resources reset in Supabase');
+      }
+
+      // Reset all buildings to not built (except house, id=0)
+      const { error: buildError } = await supabase
+        .from('game_locations')
+        .update({ is_built: false })
+        .neq('id', 0);
+
+      if (buildError) {
+        console.warn('⚠️ Could not reset buildings:', buildError);
+      } else {
+        console.log('✓ Buildings reset in Supabase');
+      }
+
+      // Disable goblin attack event
+      const { error: eventError } = await supabase
+        .from('events')
+        .update({ is_active: false })
+        .eq('event_type', 'goblin_attack');
+
+      if (eventError) {
+        console.warn('⚠️ Could not disable goblin event:', eventError);
+      } else {
+        console.log('✓ Goblin attack disabled in Supabase');
+      }
+    } catch (err) {
+      console.warn('⚠️ Supabase reset error:', err);
+    }
+
+    // 3. Close UI overlays and modals
+    setToasts([]);
+    setShowRepairPopup(false);
+    setRepairTarget(null);
+    setActiveMiniCombat(null);
+    setSelectedLocation(null);
+    setIsDefending(false);
+
+    console.log('🎉 Great Wipe complete! Reloading app...');
+    
+    // 4. Full reload
+    setTimeout(() => {
+      window.location.reload();
+    }, 1000);
+  };
+
   return (
     <div
       style={{ width: '100vw', height: '100vh', display: 'flex', justifyContent: 'center', alignItems: 'center', backgroundColor: '#1a1a1a', position: 'relative' }}
@@ -712,6 +838,7 @@ const HomeDashboard = () => {
       )}
       <MenuButton />
       <DevTriggerButton isActive={isGoblinAttackActive} onToggle={toggleGoblinAttack} />
+      <ResetButton onReset={handleReset} />
       <ResourceBar resources={resources} />
 
       {/* Toast container - bottom-right corner, pointer-events-none by default */}
