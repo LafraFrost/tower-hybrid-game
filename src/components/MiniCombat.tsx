@@ -45,7 +45,7 @@ export const MiniCombat: React.FC<MiniCombatProps> = ({ buildingName, onVictory,
       flexDirection: 'column',
       alignItems: 'center',
       justifyContent: 'center',
-      zIndex: 999,
+      zIndex: 200,
       fontFamily: 'Arial, sans-serif',
       color: 'white',
     }}>

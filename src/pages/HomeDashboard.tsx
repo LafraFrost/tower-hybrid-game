@@ -713,6 +713,17 @@ const HomeDashboard = () => {
       localStorage.setItem('defended_buildings', JSON.stringify(updatedDefended));
     } catch {}
     
+    // Update Supabase game_locations to clear under_attack flag
+    const buildingLoc = locations.find((l) => l.name === buildingName);
+    if (buildingLoc) {
+      supabase
+        .from('game_locations')
+        .update({ is_under_attack: false })
+        .eq('id', buildingLoc.id)
+        .then(() => console.log(`✅ Supabase updated for ${buildingName}`))
+        .catch(err => console.warn(`⚠️ Supabase update failed for ${buildingName}:`, err));
+    }
+    
     // Close mini combat overlay immediately
     setActiveMiniCombat(null);
     
@@ -729,6 +740,17 @@ const HomeDashboard = () => {
     try {
       localStorage.setItem('ruined_buildings', JSON.stringify(updatedRuined));
     } catch {}
+    
+    // Update Supabase game_locations to mark as ruined
+    const buildingLoc = locations.find((l) => l.name === buildingName);
+    if (buildingLoc) {
+      supabase
+        .from('game_locations')
+        .update({ is_ruined: true, is_under_attack: false })
+        .eq('id', buildingLoc.id)
+        .then(() => console.log(`💀 Supabase updated for ${buildingName}`))
+        .catch(err => console.warn(`⚠️ Supabase update failed for ${buildingName}:`, err));
+    }
     
     // Close mini combat overlay immediately
     setActiveMiniCombat(null);
