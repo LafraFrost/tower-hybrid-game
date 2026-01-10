@@ -1242,17 +1242,13 @@ const HomeDashboard = () => {
         <img src={mapImage} style={{ width: '100%', height: '100%', pointerEvents: 'none' }} alt="Mappa" />
 
 
-        {locations.map((loc) => (
+        {/* Render all buildings EXCEPT the Mine */}
+        {locations.filter((loc) => loc.buildingType !== 'mine').map((loc) => (
           <div
             key={loc.id}
             onMouseDown={() => handleMouseDown(loc.id)}
             onClick={() => {
               if (!loc.is_built) {
-                // Se miniera e attacco attivo, mostra messaggio
-                if (loc.buildingType === 'mine' && isGoblinAttackActive) {
-                  showToast('info', '⚠️ Sentiero bloccato dai Goblin! Sconfiggili per accedere alla miniera', { duration: 3000 });
-                  return;
-                }
                 setSelectedLocation(loc.id);
               }
             }}
@@ -1263,8 +1259,7 @@ const HomeDashboard = () => {
               transform: 'translate(-50%, -50%)',
               cursor: DISABLE_BUILDING_DRAG ? 'default' : (draggingId === loc.id ? 'grabbing' : 'grab'),
               zIndex: selectedLocation === loc.id ? 1000 : draggingId === loc.id ? 100 : 10,
-              // Hide mine completely if not unlocked in DB (regardless of build status)
-              display: (loc.buildingType === 'mine' && !Boolean(loc.is_unlocked)) ? 'none' : 'flex',
+              display: 'flex',
               flexDirection: 'column-reverse', // etichetta sopra, immagine sotto
               alignItems: 'center',
               // Se attacco goblin attivo: disabilita solo gli edifici non-defense COSTRUITI
@@ -1272,39 +1267,6 @@ const HomeDashboard = () => {
               pointerEvents: isGoblinAttackActive && loc.buildingType !== 'defense' && loc.is_built ? 'none' : 'auto',
             }}
           >
-            {/* Yellow Triangle (site) for Mine when unlocked in DB but not built */}
-            {(() => {
-              const isMine = loc.buildingType === 'mine';
-              const unlocked = Boolean(loc.is_unlocked);
-              if (!(isMine && unlocked && !loc.is_built)) return null;
-              return (
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setShowMineRebuildPopup(true);
-                  }}
-                  style={{
-                    position: 'absolute',
-                    top: '-48px',
-                    left: '50%',
-                    transform: 'translateX(-50%)',
-                    backgroundColor: 'rgba(234,179,8,0.9)',
-                    border: '2px solid #d97706',
-                    color: '#1f2937',
-                    padding: '8px 12px',
-                    borderRadius: '10px',
-                    fontWeight: 800,
-                    boxShadow: '0 0 20px rgba(234,179,8,0.8)',
-                    animation: 'pulse 1.2s infinite',
-                    zIndex: 120,
-                    pointerEvents: 'auto',
-                  }}
-                  title="Miniera scoperta! Ricostruisci"
-                >
-                  ⚠️ Cantiere Miniera
-                </button>
-              );
-            })()}
             {/* Fire Swords Overlay when under attack - visible only in defending mode */}
             {(() => {
               const defended = defendedBuildings.includes(loc.name);
@@ -1460,6 +1422,88 @@ const HomeDashboard = () => {
             )}
           </div>
         ))}
+
+        {/* Mine rendering - ONLY when is_unlocked === true */}
+        {locations.filter((loc) => loc.buildingType === 'mine').map((mine) =>
+          mine.is_unlocked ? (
+            <div
+              key={`mine-${mine.id}`}
+              style={{
+                position: 'absolute',
+                top: `${mine.coordinateY}%`,
+                left: `${mine.coordinateX}%`,
+                transform: 'translate(-50%, -50%)',
+                zIndex: 50,
+              }}
+            >
+              {/* Yellow Triangle (Cantiere) when unlocked but not built */}
+              {!mine.is_built ? (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setShowMineRebuildPopup(true);
+                  }}
+                  style={{
+                    position: 'absolute',
+                    top: '-48px',
+                    left: '50%',
+                    transform: 'translateX(-50%)',
+                    backgroundColor: 'rgba(234,179,8,0.9)',
+                    border: '2px solid #d97706',
+                    color: '#1f2937',
+                    padding: '8px 12px',
+                    borderRadius: '10px',
+                    fontWeight: 800,
+                    boxShadow: '0 0 20px rgba(234,179,8,0.8)',
+                    animation: 'pulse 1.2s infinite',
+                    zIndex: 120,
+                    pointerEvents: 'auto',
+                    cursor: 'pointer',
+                  }}
+                  title="Miniera scoperta! Ricostruisci"
+                >
+                  ⚠️ Cantiere Miniera
+                </button>
+              ) : (
+                /* Built Mine - show regular mine icon */
+                <div
+                  style={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    gap: '8px',
+                  }}
+                >
+                  <img
+                    src={buildingAssets['mine']}
+                    alt="Miniera"
+                    style={{
+                      width: '60px',
+                      height: 'auto',
+                      pointerEvents: 'none',
+                      filter: 'none',
+                    }}
+                  />
+                  <span
+                    style={{
+                      backgroundColor: 'rgba(0,0,0,0.7)',
+                      color: 'white',
+                      padding: '2px 10px',
+                      borderRadius: '12px',
+                      fontSize: '13px',
+                      fontWeight: 'bold',
+                      whiteSpace: 'nowrap',
+                      boxShadow: '0 2px 4px rgba(0,0,0,0.3)',
+                      pointerEvents: 'none',
+                    }}
+                  >
+                    {mine.name}
+                  </span>
+                </div>
+              )}
+            </div>
+          ) : null
+        )}
       </div>
     </div>
   );
