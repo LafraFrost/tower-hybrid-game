@@ -440,10 +440,11 @@ const HomeDashboard = () => {
     } catch {}
   }, [isDefending]);
 
-  // Quando attacco goblin si attiva, mostra un Toast persistente
+  // Quando attacco goblin si attiva, mostra un Toast persistente e passa direttamente a modalità difesa
   useEffect(() => {
     if (isGoblinAttackActive) {
-      console.log('🚨 Goblin attack activated! Showing toast');
+      console.log('🚨 Goblin attack activated! Entering defense mode immediately.');
+      setIsDefending(true);
       if (goblinToastId == null) {
         const id = Date.now();
         setGoblinToastId(id);
@@ -477,10 +478,6 @@ const HomeDashboard = () => {
     }
   }, [locations, defendedBuildings, ruinedBuildings, isGoblinAttackActive, isDefending]);
 
-  const handleDefend = () => {
-    setIsDefending(true);
-    console.log('🔥 Entering defense mode - swords will now be visible');
-  };
 
   const handleMouseDown = (id: number) => {
     if (DISABLE_BUILDING_DRAG) {
@@ -699,51 +696,6 @@ const HomeDashboard = () => {
         ))}
       </div>
 
-      {/* Overlay Attacco Goblin - Fase 1: Blocco totale con pulsante DIFENDI */}
-      {isGoblinAttackActive && !isDefending && (
-        <div
-          style={{
-            position: 'fixed',
-            top: 0,
-            left: 0,
-            width: '100vw',
-            height: '100vh',
-            backgroundColor: 'rgba(255, 0, 0, 0.6)',
-            zIndex: 4000,
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            justifyContent: 'center',
-            animation: 'pulse 1s infinite',
-            pointerEvents: 'auto',
-          }}
-        >
-          <style>{`
-            @keyframes pulse {
-              0%, 100% { background-color: rgba(255, 0, 0, 0.5); }
-              50% { background-color: rgba(255, 0, 0, 0.7); }
-            }
-          `}</style>
-          <div style={{ textAlign: 'center', color: 'white', marginBottom: '30px' }}>
-            <h2 style={{ fontSize: '48px', fontWeight: 900, textShadow: '0 0 20px rgba(0,0,0,0.8)', marginBottom: '16px' }}>
-              ⚠️ ATTACCO GOBLIN! ⚠️
-            </h2>
-            <p style={{ fontSize: '20px', fontWeight: 700, textShadow: '0 0 10px rgba(0,0,0,0.7)' }}>
-              I Goblin stanno attaccando il tuo insediamento!
-            </p>
-          </div>
-          <Button
-            onClick={handleDefend}
-            className="bg-red-600 hover:bg-red-700 text-white font-black text-3xl py-8 px-12 flex items-center justify-center gap-4"
-            style={{ boxShadow: '0 10px 40px rgba(0,0,0,0.5)' }}
-          >
-            <Swords className="w-10 h-10" />
-            DIFENDI
-            <Swords className="w-10 h-10" />
-          </Button>
-        </div>
-      )}
-
       {/* Overlay Attacco Goblin - Fase 2: Filtro leggero con bordo pulsante (pointer-events-none) */}
       {isGoblinAttackActive && isDefending && (
         <div
@@ -770,36 +722,7 @@ const HomeDashboard = () => {
         </div>
       )}
 
-      {/* AlertDialog per attacco goblin */}
-      <AlertDialog open={false} onOpenChange={() => {}}>
-        <AlertDialogContent className="bg-gradient-to-b from-red-950 to-black border-2 border-red-500 max-w-md">
-          <AlertDialogTitle className="text-2xl text-red-400 flex items-center gap-2">
-            <Swords className="w-6 h-6" />
-            ⚠️ ATTACCO GOBLIN! ⚠️
-          </AlertDialogTitle>
-          <AlertDialogDescription className="text-white text-base space-y-3">
-            <p className="font-bold text-lg">
-              I Goblin stanno attaccando il vostro insediamento!
-            </p>
-            <p>
-              Una orda di goblin selvaggi ha invaso il territorio. Dovete difendere immediatamente il vostro avamposto!
-            </p>
-            <p className="text-yellow-300 font-bold">
-              Clicca "DIFENDI" per entrare in battaglia subito!
-            </p>
-          </AlertDialogDescription>
-          <div className="pt-4">
-            <Button
-              onClick={handleDefend}
-              className="w-full bg-red-600 hover:bg-red-700 text-white font-black text-2xl py-6 flex items-center justify-center gap-4"
-            >
-              <Swords className="w-7 h-7" />
-              DIFENDI
-              <Swords className="w-7 h-7" />
-            </Button>
-          </div>
-        </AlertDialogContent>
-      </AlertDialog>
+
 
       {/* Messaggio temporaneo attacco goblin */}
       {goblinAttackMessage && (
