@@ -87,36 +87,38 @@ const MenuButton = () => (
   </button>
 );
 
-const DevTriggerButton = ({ isActive, onToggle }: { isActive: boolean; onToggle: () => void }) => (
+const DevTriggerButton = ({ isActive, onStart }: { isActive: boolean; onStart: () => void }) => (
   <button 
-    onClick={onToggle}
+    onClick={onStart}
+    disabled={isActive}
     style={{
       position: 'absolute',
       top: '20px',
       right: '20px',
-      opacity: 0.9,
+      opacity: 0.95,
       fontSize: '12px',
       padding: '8px 12px',
-      backgroundColor: isActive ? '#dc2626' : '#ff6b00',
+      backgroundColor: isActive ? '#374151' : '#22c55e',
       color: 'white',
-      border: '2px solid ' + (isActive ? '#991b1b' : '#b45309'),
+      border: '2px solid ' + (isActive ? '#6b7280' : '#16a34a'),
       borderRadius: '4px',
-      cursor: 'pointer',
+      cursor: isActive ? 'not-allowed' : 'pointer',
       zIndex: 9999,
       transition: 'all 0.3s',
       fontWeight: 'bold',
       pointerEvents: 'auto',
     }}
+    title={isActive ? 'Evento Goblin in corso' : 'Avvia Sequenza Evento Goblin'}
     onMouseEnter={(e) => {
       e.currentTarget.style.opacity = '1';
-      e.currentTarget.style.boxShadow = '0 0 15px ' + (isActive ? 'rgba(220, 38, 38, 0.8)' : 'rgba(255, 107, 0, 0.8)');
+      e.currentTarget.style.boxShadow = isActive ? '0 0 12px rgba(107,114,128,0.8)' : '0 0 15px rgba(34,197,94,0.8)';
     }}
     onMouseLeave={(e) => {
-      e.currentTarget.style.opacity = '0.9';
+      e.currentTarget.style.opacity = '0.95';
       e.currentTarget.style.boxShadow = 'none';
     }}
   >
-    {isActive ? '❌ ATTACCO ON' : '✓ ATTACCO OFF'}
+    {isActive ? '⏳ Evento Goblin in corso' : '▶️ Avvia Evento Goblin'}
   </button>
 );
 
@@ -357,6 +359,63 @@ const HomeDashboard = () => {
       defenseCheckDoneRef.current = false; // Reset debounce flag
       console.log('🛡️ Defense mode activated');
     }, 0);
+  };
+
+  const startGoblinAttackSequence = async () => {
+    if (isGoblinAttackActive) return;
+    try {
+      // Upsert goblin attack event as active
+      const { data: existing, error: selErr } = await supabase
+        .from('events')
+        .select('id')
+        .eq('event_type', 'goblin_attack')
+        .limit(1);
+      if (selErr) {
+        console.warn('⚠️ Errore lettura evento Goblin:', selErr);
+      }
+      if (existing && existing.length > 0) {
+        const { error: updErr } = await supabase
+          .from('events')
+          .update({ is_active: true, triggered_at: new Date().toISOString() })
+          .eq('id', existing[0].id);
+        if (updErr) console.warn('⚠️ Errore aggiornamento evento Goblin:', updErr);
+      } else {
+        const { error: insErr } = await supabase
+          .from('events')
+          .insert({ event_type: 'goblin_attack', is_active: true, triggered_at: new Date().toISOString() });
+        if (insErr) console.warn('⚠️ Errore inserimento evento Goblin:', insErr);
+      }
+
+      // Clear local defended/ruined state for a fresh wave
+      try {
+        localStorage.setItem('defended_buildings', JSON.stringify([]));
+        localStorage.setItem('ruined_buildings', JSON.stringify([]));
+      } catch {}
+      setDefendedBuildings([]);
+      setRuinedBuildings([]);
+
+      // Mark built locations (except Mine) as under attack in DB
+      const targets = locations.filter((l) => Boolean(l.is_built) && normalizeBuildingType(l) !== 'mine');
+      for (const loc of targets) {
+        const { error: locErr } = await supabase
+          .from('game_locations')
+          .update({ is_under_attack: true, is_ruined: false })
+          .eq('id', loc.id);
+        if (locErr) console.warn(`⚠️ Errore set under_attack per ${loc.name}:`, locErr);
+      }
+
+      // Refresh and enter defense mode
+      const refreshed = await fetchLocations();
+      setIsGoblinAttackActive(true);
+      setIsDefending(true);
+      if (!refreshed) {
+        showToast('warning', 'Evento avviato, ma sincronizzazione locations non riuscita.', { duration: 3500 });
+      }
+      showToast('info', '🔥 Attacco Goblin iniziato! Difendi il villaggio!', { duration: 4000 });
+    } catch (err) {
+      console.error('❌ Errore avvio sequenza:', err);
+      showToast('error', '❌ Errore durante l\'avvio dell\'evento Goblin.', { duration: 4000 });
+    }
   };
 
   const toggleGoblinAttack = async () => {
@@ -1106,7 +1165,7 @@ const HomeDashboard = () => {
       <GoblinAttackBanner isActive={isGoblinAttackActive} />
       
       <MenuButton />
-      <DevTriggerButton isActive={isGoblinAttackActive} onToggle={toggleGoblinAttack} />
+      <DevTriggerButton isActive={isGoblinAttackActive} onStart={startGoblinAttackSequence} />
       <ResetButton onReset={handleReset} />
       <ResourceBar resources={resources} />
 
