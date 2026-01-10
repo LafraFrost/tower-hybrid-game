@@ -1,5 +1,4 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { useLocation } from 'wouter';
 import {
   AlertDialog,
   AlertDialogContent,
@@ -130,7 +129,6 @@ const DevTriggerButton = ({ isActive, onToggle }: { isActive: boolean; onToggle:
 
 
 const HomeDashboard = () => {
-  const [, setLocation] = useLocation();
   const [locations, setLocations] = useState<any[]>([]);
   const [draggingId, setDraggingId] = useState<number | null>(null);
   const [selectedLocation, setSelectedLocation] = useState<number | null>(null);
@@ -139,6 +137,7 @@ const HomeDashboard = () => {
   const [mapImage, setMapImage] = useState('/assets/casa.jpg');
   const [isGoblinAttackActive, setIsGoblinAttackActive] = useState(false);
   const [goblinAttackMessage, setGoblinAttackMessage] = useState('');
+  const [isDefending, setIsDefending] = useState(false);
   const [defendedBuildings, setDefendedBuildings] = useState<string[]>([]);
   const [ruinedBuildings, setRuinedBuildings] = useState<string[]>([]);
   const [showCampPopup, setShowCampPopup] = useState(false);
@@ -395,8 +394,10 @@ const HomeDashboard = () => {
     try {
       const def = localStorage.getItem('defended_buildings');
       const ruin = localStorage.getItem('ruined_buildings');
+      const defending = localStorage.getItem('is_defending');
       setDefendedBuildings(def ? JSON.parse(def) : []);
       setRuinedBuildings(ruin ? JSON.parse(ruin) : []);
+      setIsDefending(defending === 'true');
     } catch {}
   }, []);
 
@@ -432,6 +433,13 @@ const HomeDashboard = () => {
     };
   }, []);
 
+  // Save isDefending state to localStorage
+  useEffect(() => {
+    try {
+      localStorage.setItem('is_defending', isDefending ? 'true' : 'false');
+    } catch {}
+  }, [isDefending]);
+
   // Quando attacco goblin si attiva, mostra un Toast persistente
   useEffect(() => {
     if (isGoblinAttackActive) {
@@ -461,11 +469,17 @@ const HomeDashboard = () => {
     });
     if (!anyUnderAttack) {
       // Alert dialog removed; toast persists only while attack is active
+      // Also reset defending mode when done
+      if (isDefending) {
+        setIsDefending(false);
+        console.log('✅ All buildings defended/ruined - exiting defense mode');
+      }
     }
-  }, [locations, defendedBuildings, ruinedBuildings, isGoblinAttackActive]);
+  }, [locations, defendedBuildings, ruinedBuildings, isGoblinAttackActive, isDefending]);
 
   const handleDefend = () => {
-    setLocation("/solo");
+    setIsDefending(true);
+    console.log('🔥 Entering defense mode - swords will now be visible');
   };
 
   const handleMouseDown = (id: number) => {
@@ -685,8 +699,8 @@ const HomeDashboard = () => {
         ))}
       </div>
 
-      {/* Overlay Attacco Goblin (solo background pulsante, NO testo qui) */}
-      {isGoblinAttackActive && (
+      {/* Overlay Attacco Goblin - Fase 1: Blocco totale con pulsante DIFENDI */}
+      {isGoblinAttackActive && !isDefending && (
         <div
           style={{
             position: 'fixed',
@@ -694,16 +708,63 @@ const HomeDashboard = () => {
             left: 0,
             width: '100vw',
             height: '100vh',
-            backgroundColor: 'rgba(255, 0, 0, 0.4)',
-            zIndex: 3000,
+            backgroundColor: 'rgba(255, 0, 0, 0.6)',
+            zIndex: 4000,
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
             animation: 'pulse 1s infinite',
-            pointerEvents: 'none',
+            pointerEvents: 'auto',
           }}
         >
           <style>{`
             @keyframes pulse {
-              0%, 100% { background-color: rgba(255, 0, 0, 0.4); }
-              50% { background-color: rgba(255, 0, 0, 0.6); }
+              0%, 100% { background-color: rgba(255, 0, 0, 0.5); }
+              50% { background-color: rgba(255, 0, 0, 0.7); }
+            }
+          `}</style>
+          <div style={{ textAlign: 'center', color: 'white', marginBottom: '30px' }}>
+            <h2 style={{ fontSize: '48px', fontWeight: 900, textShadow: '0 0 20px rgba(0,0,0,0.8)', marginBottom: '16px' }}>
+              ⚠️ ATTACCO GOBLIN! ⚠️
+            </h2>
+            <p style={{ fontSize: '20px', fontWeight: 700, textShadow: '0 0 10px rgba(0,0,0,0.7)' }}>
+              I Goblin stanno attaccando il tuo insediamento!
+            </p>
+          </div>
+          <Button
+            onClick={handleDefend}
+            className="bg-red-600 hover:bg-red-700 text-white font-black text-3xl py-8 px-12 flex items-center justify-center gap-4"
+            style={{ boxShadow: '0 10px 40px rgba(0,0,0,0.5)' }}
+          >
+            <Swords className="w-10 h-10" />
+            DIFENDI
+            <Swords className="w-10 h-10" />
+          </Button>
+        </div>
+      )}
+
+      {/* Overlay Attacco Goblin - Fase 2: Filtro leggero con bordo pulsante (pointer-events-none) */}
+      {isGoblinAttackActive && isDefending && (
+        <div
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            width: '100vw',
+            height: '100vh',
+            backgroundColor: 'rgba(127, 29, 29, 0.15)',
+            border: '8px solid rgba(220, 38, 38, 0.8)',
+            borderRadius: '0',
+            zIndex: 3000,
+            animation: 'pulseBorder 1.5s infinite',
+            pointerEvents: 'none',
+          }}
+        >
+          <style>{`
+            @keyframes pulseBorder {
+              0%, 100% { border-color: rgba(220, 38, 38, 0.6); }
+              50% { border-color: rgba(239, 68, 68, 0.9); }
             }
           `}</style>
         </div>
@@ -777,45 +838,36 @@ const HomeDashboard = () => {
       >
         <img src={mapImage} style={{ width: '100%', height: '100%', pointerEvents: 'none' }} alt="Mappa" />
 
-        {/* Scritta attacco goblin centrata nella mappa */}
-        {isGoblinAttackActive && (
-          <>
-            <style>{`
-              @keyframes wobble {
-                0%, 100% { transform: translateX(0) }
-                25% { transform: translateX(-8px) }
-                75% { transform: translateX(8px) }
-              }
-            `}</style>
-            <div
+        {/* Banner elegante in alto durante la fase di difesa */}
+        {isGoblinAttackActive && isDefending && (
+          <div
+            style={{
+              position: 'absolute',
+              top: '10%',
+              left: '50%',
+              transform: 'translateX(-50%)',
+              zIndex: 4000,
+              pointerEvents: 'none',
+              backgroundColor: 'rgba(127, 29, 29, 0.95)',
+              border: '3px solid #ef4444',
+              borderRadius: '16px',
+              padding: '16px 40px',
+              boxShadow: '0 10px 40px rgba(0,0,0,0.6)',
+            }}
+          >
+            <span
               style={{
-                position: 'absolute',
-                top: '50%',
-                left: 0,
-                right: 0,
-                width: '100%',
-                textAlign: 'center',
-                transform: 'translateY(calc(-50% - 260px))',
-                zIndex: 4000,
-                pointerEvents: 'none',
+                display: 'inline-block',
+                color: '#fca5a5',
+                fontSize: '32px',
+                fontWeight: 900,
+                textShadow: '0 2px 8px rgba(0,0,0,0.8)',
+                letterSpacing: '2px',
               }}
             >
-              <span
-                style={{
-                  display: 'inline-block',
-                  whiteSpace: 'nowrap',
-                  color: 'red',
-                  fontSize: '48px',
-                  fontWeight: 'bold',
-                  textShadow: '0 0 20px rgba(255, 0, 0, 0.8)',
-                  margin: 0,
-                  animation: 'wobble 0.8s infinite',
-                }}
-              >
-                ⚠️ ATTACCO GOBLIN IN CORSO! ⚠️
-              </span>
-            </div>
-          </>
+              🔥 DIFENDI IL VILLAGGIO 🔥
+            </span>
+          </div>
         )}
 
         {locations.map((loc) => (
@@ -850,11 +902,11 @@ const HomeDashboard = () => {
               pointerEvents: isGoblinAttackActive && loc.buildingType !== 'defense' && loc.is_built ? 'none' : 'auto',
             }}
           >
-            {/* Fire Swords Overlay when under attack */}
+            {/* Fire Swords Overlay when under attack - visible only in defending mode */}
             {(() => {
               const defended = defendedBuildings.includes(loc.name);
               const ruined = ruinedBuildings.includes(loc.name);
-              const showSwords = isGoblinAttackActive && loc.is_built && !defended && !ruined && loc.buildingType !== 'mine';
+              const showSwords = isGoblinAttackActive && isDefending && loc.is_built && !defended && !ruined && loc.buildingType !== 'mine';
               if (!showSwords) return null;
               return (
                 <button
