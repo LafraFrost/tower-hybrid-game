@@ -170,7 +170,6 @@ const HomeDashboard = () => {
   const [draggingId, setDraggingId] = useState<number | null>(null);
   const [selectedLocation, setSelectedLocation] = useState<number | null>(null);
   const [resources, setResources] = useState<any>({ wood: 0, stone: 0, gold: 0 });
-  const [isMineUnlocked, setIsMineUnlocked] = useState(false);
   const [mapImage, setMapImage] = useState('/assets/casa.jpg');
   const [isGoblinAttackActive, setIsGoblinAttackActive] = useState(false);
   const [isDefending, setIsDefending] = useState(false);
@@ -484,19 +483,12 @@ const HomeDashboard = () => {
     };
   }, [loadLocations]);
 
-  // Keep `isMineUnlocked` in sync with DB `game_locations.is_unlocked`
-  useEffect(() => {
-    const mineLoc = locations.find((l) => normalizeBuildingType(l) === 'mine');
-    setIsMineUnlocked(Boolean(mineLoc?.is_unlocked));
-  }, [locations]);
-
   useEffect(() => {
     // Try to load resources from API, fallback to mock data
     fetch('/api/user-resources', { credentials: 'include' })
       .then((res) => res.json())
       .then((data) => {
         setResources(data || { wood: 0, stone: 0, gold: 0 });
-        setIsMineUnlocked(!!data?.isMineUnlocked);
       })
       .catch((err) => {
         console.warn('API not available, using default resources:', err);
@@ -519,15 +511,6 @@ const HomeDashboard = () => {
             stone: resData.stone || 0, 
             gold: resData.gold || 0 
           });
-        }
-        // Try localStorage for mine unlock status - skip Supabase query to avoid 400 errors
-        try {
-          const unlockStatus = localStorage.getItem('is_mine_unlocked');
-          setIsMineUnlocked(unlockStatus === 'true');
-          console.log('🔓 Mine unlock status (localStorage):', unlockStatus === 'true');
-        } catch (e) {
-          console.warn('⚠️ Could not load mine unlock status:', e);
-          setIsMineUnlocked(false);
         }
       } catch (err) {
         console.error('Error loading from Supabase:', err);
@@ -650,9 +633,9 @@ const HomeDashboard = () => {
     try {
       if (loc.is_built) return;
 
-      // Check if it's the mine and it's not unlocked yet
-      if (loc.buildingType === 'mine' && !isMineUnlocked) {
-        showToast('warning', '🔒 La Miniera è bloccata! Sconfiggi il Boss del Nodo 22 per sbloccarla.', { duration: 4000 });
+      // Check if it's the mine and it's not unlocked yet (DB-driven check)
+      if (loc.buildingType === 'mine' && !Boolean(loc.is_unlocked)) {
+        showToast('warning', '🔒 La Miniera è bloccata! Difendi il villaggio dall\'attacco Goblin per sbloccarla.', { duration: 4000 });
         setSelectedLocation(null);
         return;
       }
@@ -1280,8 +1263,8 @@ const HomeDashboard = () => {
               transform: 'translate(-50%, -50%)',
               cursor: DISABLE_BUILDING_DRAG ? 'default' : (draggingId === loc.id ? 'grabbing' : 'grab'),
               zIndex: selectedLocation === loc.id ? 1000 : draggingId === loc.id ? 100 : 10,
-              // Hide mine if path not unlocked in DB and it's not built yet
-              display: (loc.buildingType === 'mine' && !Boolean(loc.is_unlocked) && !loc.is_built) ? 'none' : 'flex',
+              // Hide mine completely if not unlocked in DB (regardless of build status)
+              display: (loc.buildingType === 'mine' && !Boolean(loc.is_unlocked)) ? 'none' : 'flex',
               flexDirection: 'column-reverse', // etichetta sopra, immagine sotto
               alignItems: 'center',
               // Se attacco goblin attivo: disabilita solo gli edifici non-defense COSTRUITI
