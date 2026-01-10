@@ -293,6 +293,7 @@ export interface GameCard {
   comboSymbol?: ComboSymbol;
   value?: number;
   description: string;
+  uniqueId?: string; // Unique identifier for React key to avoid confusion with played cards
 }
 
 export const CARD_DATA: Record<string, GameCard> = GAME_DATA.BASE_CARDS.reduce(

@@ -89,49 +89,94 @@ const shuffleDeck = (deck: string[]): string[] => {
   return shuffled;
 };
 
-const drawCards = (deck: string[], count: number): { drawn: GameCard[], remaining: string[] } => {
+// Reshuffle function: takes discard pile and creates new shuffled deck
+const reshuffle = (discardPile: string[]): { newDeck: string[], shouldLog: boolean } => {
+  // If discard pile is empty, cannot reshuffle (all cards are in hand)
+  if (discardPile.length === 0) {
+    return { newDeck: [], shouldLog: false };
+  }
+
+  // Fisher-Yates shuffle algorithm
+  const cards = [...discardPile];
+  for (let i = cards.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [cards[i], cards[j]] = [cards[j], cards[i]];
+  }
+
+  return { newDeck: cards, shouldLog: true };
+};
+
+const drawCards = (deck: string[], count: number, discardPile: string[] = []): { drawn: GameCard[], remaining: string[], newDiscard: string[], reshuffled: boolean } => {
   const drawn: GameCard[] = [];
-  const remaining = [...deck];
+  let remaining = [...deck];
+  let currentDiscard = [...discardPile];
+  let reshuffled = false;
   
-  for (let i = 0; i < count && remaining.length > 0; i++) {
-    const cardId = remaining.shift()!;
-    const card = CARD_DATA[cardId];
-    if (card) drawn.push(card);
+  for (let i = 0; i < count; i++) {
+    // Check if deck is empty before drawing
+    if (remaining.length === 0) {
+      // Attempt reshuffle from discard pile
+      const reshuffleResult = reshuffle(currentDiscard);
+      if (reshuffleResult.newDeck.length > 0) {
+        remaining = reshuffleResult.newDeck;
+        currentDiscard = [];
+        reshuffled = true;
+      } else {
+        // No cards available, stop drawing
+        break;
+      }
+    }
+
+    // Draw one card
+    if (remaining.length > 0) {
+      const cardId = remaining.shift()!;
+      const card = CARD_DATA[cardId];
+      if (card) {
+        // Add unique ID to avoid React confusion with already played cards
+        const uniqueCard = { ...card, uniqueId: cardId + '_' + Math.random().toString(36).substring(2, 9) };
+        drawn.push(uniqueCard as GameCard);
+      }
+    }
   }
   
-  return { drawn, remaining };
+  return { drawn, remaining, newDiscard: currentDiscard, reshuffled };
 };
 
 // Draw single card with auto-reshuffle from discard pile
-const drawCard = (state: BattleState): { card: GameCard | null, newState: BattleState } => {
+const drawCard = (state: BattleState): { card: GameCard | null, newState: BattleState, reshuffled: boolean } => {
   let currentDeck = [...state.deck];
   let currentDiscard = [...state.discardPile];
   let reshuffled = false;
 
   // If deck is empty, reshuffle discard pile into deck
   if (currentDeck.length === 0 && currentDiscard.length > 0) {
-    currentDeck = shuffleDeck(currentDiscard);
-    currentDiscard = [];
-    reshuffled = true;
-    appendLog("♻️ MAZZO RIMESCOLATO dalla pila degli scarti!");
+    const reshuffleResult = reshuffle(currentDiscard);
+    if (reshuffleResult.newDeck.length > 0) {
+      currentDeck = reshuffleResult.newDeck;
+      currentDiscard = [];
+      reshuffled = true;
+    }
   }
 
   // Draw one card
   if (currentDeck.length > 0) {
     const cardId = currentDeck.shift()!;
     const card = CARD_DATA[cardId];
+    // Add unique ID to avoid React confusion
+    const uniqueCard = card ? { ...card, uniqueId: cardId + '_' + Math.random().toString(36).substring(2, 9) } : null;
     return {
-      card: card || null,
+      card: uniqueCard as GameCard | null,
       newState: {
         ...state,
         deck: currentDeck,
         discardPile: currentDiscard,
         feedbackMessage: reshuffled ? "♻️ Mazzo rimescolato!" : state.feedbackMessage
-      }
+      },
+      reshuffled
     };
   }
 
-  return { card: null, newState: state };
+  return { card: null, newState: state, reshuffled: false };
 };
 
 const detectCombos = (hand: GameCard[]): Map<string, number> => {
@@ -322,7 +367,7 @@ const TacticalScreen = () => {
   const startBattle = (node: Node) => {
     const heroProfile = HERO_PROFILES[selectedHero as HeroName];
     const initialDeck = heroProfile ? shuffleDeck([...heroProfile.initialDeck]) : [];
-    const { drawn, remaining } = drawCards(initialDeck, 4);
+    const { drawn, remaining, newDiscard, reshuffled } = drawCards(initialDeck, 4, []);
     
     const base: BattleState = {
       enemyHp: node.type === "Boss" ? 26 : 14,
@@ -334,8 +379,8 @@ const TacticalScreen = () => {
       damageMultiplier: 1,
       hand: drawn,
       deck: remaining,
-      discardPile: [],
-      feedbackMessage: "Hai pescato 4 carte",
+      discardPile: newDiscard,
+      feedbackMessage: reshuffled ? "♻️ Mazzo rimescolato! Hai pescato 4 carte" : "Hai pescato 4 carte",
     };
     const rolled = rollBonus(base);
     setBattleNode(node);
@@ -408,10 +453,13 @@ const TacticalScreen = () => {
       hand: newHand,
       discardPile: [...battle.discardPile, ...cardsToDiscard.map(c => c.id)]
     };
+    
+    let anyReshuffled = false;
 
     // Draw same number of cards as discarded
     for (let i = 0; i < cardsToDiscard.length; i++) {
       const result = drawCard(updatedState);
+      if (result.reshuffled) anyReshuffled = true;
       if (result.card) {
         updatedState = {
           ...result.newState,
@@ -420,6 +468,10 @@ const TacticalScreen = () => {
       } else {
         updatedState = result.newState;
       }
+    }
+    
+    if (anyReshuffled) {
+      appendLog("♻️ MAZZO RIMESCOLATO dalla pila degli scarti!");
     }
 
     appendLog(`🔄 Riciclate ${cardsToDiscard.length} carte, pescate ${cardsToDiscard.length} nuove`);
@@ -508,16 +560,16 @@ const TacticalScreen = () => {
       return;
     }
 
-    // Reshuffle if deck is empty
-    let currentDeck = [...battle.deck];
-    if (currentDeck.length < 4) {
-      currentDeck = [...currentDeck, ...battle.discardPile];
-      currentDeck = shuffleDeck(currentDeck);
-      appendLog("Mazzo rimescolato!");
-    }
+    // CRITICAL: Discard remaining hand cards before drawing new hand
+    const remainingHandIds = battle.hand.map(c => c.id);
+    const updatedDiscardPile = [...battle.discardPile, ...remainingHandIds];
 
-    // Draw new hand
-    const { drawn, remaining } = drawCards(currentDeck, 4);
+    // Draw new hand with auto-reshuffle if needed
+    const { drawn, remaining, newDiscard, reshuffled } = drawCards(battle.deck, 4, updatedDiscardPile);
+    
+    if (reshuffled) {
+      appendLog("♻️ Mazzo rimescolato dalla pila degli scarti!");
+    }
 
     const refreshed: BattleState = {
       enemyHp: battle.enemyHp,
@@ -529,8 +581,8 @@ const TacticalScreen = () => {
       damageMultiplier: 1,
       hand: drawn,
       deck: remaining,
-      discardPile: [],
-      feedbackMessage: "Hai pescato 4 carte",
+      discardPile: newDiscard,
+      feedbackMessage: drawn.length < 4 ? `⚠️ Pescate solo ${drawn.length} carte (mazzo esaurito)` : "Hai pescato 4 carte",
     };
     const rolled = rollBonus(refreshed);
     setBattle(rolled);
