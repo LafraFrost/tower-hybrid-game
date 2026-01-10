@@ -2,6 +2,8 @@ import React, { useEffect, useMemo, useState } from "react";
 import { useHero } from "@/context/HeroContext";
 import { loadSoloProgress, saveSoloProgress } from "@/lib/progressService";
 import { useLocation } from "wouter";
+import { CARD_DATA, HERO_PROFILES, COMBO_SYMBOL_EMOJI, type GameCard, type HeroName } from "@/data/GameData";
+import { cn } from "@/lib/utils";
 
 type NodeType = "Combat" | "Event" | "Resource" | "Rest" | "Boss" | "Start";
 
@@ -22,6 +24,10 @@ type BattleState = {
   pa: number;
   turnBonus: string;
   damageMultiplier: number;
+  hand: GameCard[];
+  deck: string[];
+  discardPile: string[];
+  feedbackMessage: string;
 };
 
 type Card = {
@@ -41,6 +47,38 @@ const cardDeck: Card[] = [
   { id: "heal1", name: "Stim", desc: "Cura 3", kind: "heal" },
   { id: "heal2", name: "Medikit", desc: "Cura 3", kind: "heal" },
 ];
+
+// Helper functions for deck system
+const shuffleDeck = (deck: string[]): string[] => {
+  const shuffled = [...deck];
+  for (let i = shuffled.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+  }
+  return shuffled;
+};
+
+const drawCards = (deck: string[], count: number): { drawn: GameCard[], remaining: string[] } => {
+  const drawn: GameCard[] = [];
+  const remaining = [...deck];
+  
+  for (let i = 0; i < count && remaining.length > 0; i++) {
+    const cardId = remaining.shift()!;
+    const card = CARD_DATA[cardId];
+    if (card) drawn.push(card);
+  }
+  
+  return { drawn, remaining };
+};
+
+const detectCombos = (hand: GameCard[]): Map<string, number> => {
+  const symbolCount = new Map<string, number>();
+  hand.forEach(card => {
+    const count = symbolCount.get(card.comboSymbol) || 0;
+    symbolCount.set(card.comboSymbol, count + 1);
+  });
+  return symbolCount;
+};
 
 const nodes: Node[] = [
   { id: 1, type: "Start", label: "Partenza", x: 80, y: 300, connections: [2, 3] },
@@ -214,6 +252,10 @@ const TacticalScreen = () => {
   };
 
   const startBattle = (node: Node) => {
+    const heroProfile = HERO_PROFILES[selectedHero as HeroName];
+    const initialDeck = heroProfile ? shuffleDeck([...heroProfile.initialDeck]) : [];
+    const { drawn, remaining } = drawCards(initialDeck, 4);
+    
     const base: BattleState = {
       enemyHp: node.type === "Boss" ? 26 : 14,
       playerHp: battle?.playerHp ?? 12,
@@ -222,6 +264,10 @@ const TacticalScreen = () => {
       pa: 3,
       turnBonus: "",
       damageMultiplier: 1,
+      hand: drawn,
+      deck: remaining,
+      discardPile: [],
+      feedbackMessage: "Hai pescato 4 carte",
     };
     const rolled = rollBonus(base);
     setBattleNode(node);
@@ -229,20 +275,39 @@ const TacticalScreen = () => {
     appendLog(`Battaglia iniziata contro ${node.label} (PA turno: ${rolled.pa})`);
   };
 
-  const useCard = (card: Card) => {
-    if (!battle || battle.pa <= 0) return;
-    const next = { ...battle, playerShield: card.kind === "defense" ? battle.playerShield + 3 : battle.playerShield };
-    next.pa -= 1;
+  const useCard = (card: GameCard) => {
+    if (!battle || battle.pa < card.paCost) return;
+    
+    // Remove card from hand
+    const newHand = battle.hand.filter(c => c.id !== card.id || c !== card);
+    const next = { ...battle, hand: newHand, discardPile: [...battle.discardPile, card.id] };
+    next.pa -= card.paCost;
 
-    if (card.kind === "attack") {
-      const dmg = Math.round(4 * battle.damageMultiplier);
+    const value = card.value || 0;
+
+    if (card.type === "Attack") {
+      const dmg = Math.round(value * battle.damageMultiplier);
       next.enemyHp = Math.max(0, next.enemyHp - dmg);
       appendLog(`${card.name}: -${dmg} HP al nemico`);
+    } else if (card.type === "Defense") {
+      next.playerShield += value;
+      appendLog(`${card.name}: +${value} Scudo`);
+    } else if (card.type === "Heal") {
+      next.playerHp = Math.min(14, next.playerHp + value);
+      appendLog(`${card.name}: +${value} HP`);
     }
 
-    if (card.kind === "heal") {
-      next.playerHp = Math.min(14, next.playerHp + 3);
-      appendLog(`${card.name}: +3 HP`);
+    // Check for combos in new hand
+    const combos = detectCombos(newHand);
+    let comboMessage = "";
+    combos.forEach((count, symbol) => {
+      if (count >= 2) {
+        comboMessage = `Combo ${symbol} Attivata!`;
+      }
+    });
+    
+    if (comboMessage) {
+      next.feedbackMessage = comboMessage;
     }
 
     setBattle(next);
@@ -269,6 +334,17 @@ const TacticalScreen = () => {
       return;
     }
 
+    // Reshuffle if deck is empty
+    let currentDeck = [...battle.deck];
+    if (currentDeck.length < 4) {
+      currentDeck = [...currentDeck, ...battle.discardPile];
+      currentDeck = shuffleDeck(currentDeck);
+      appendLog("Mazzo rimescolato!");
+    }
+
+    // Draw new hand
+    const { drawn, remaining } = drawCards(currentDeck, 4);
+
     const refreshed: BattleState = {
       enemyHp: battle.enemyHp,
       playerHp: nextHp,
@@ -277,6 +353,10 @@ const TacticalScreen = () => {
       pa: 3,
       turnBonus: "",
       damageMultiplier: 1,
+      hand: drawn,
+      deck: remaining,
+      discardPile: [],
+      feedbackMessage: "Hai pescato 4 carte",
     };
     const rolled = rollBonus(refreshed);
     setBattle(rolled);
@@ -577,6 +657,11 @@ const TacticalScreen = () => {
                 <p className="text-xs uppercase tracking-[0.2em] text-cyan-300/80">Battaglia</p>
                 <h2 className="text-2xl font-black" style={{ color: getNodeColor(battleNode) }}>{battleNode.label}</h2>
                 <p className="text-slate-400 text-xs">PA turno: {battle.pa} • {battle.turnBonus}</p>
+                {battle.feedbackMessage && (
+                  <p className="text-amber-300 text-sm font-semibold mt-1 animate-pulse">
+                    ✨ {battle.feedbackMessage}
+                  </p>
+                )}
               </div>
               <button
                 className="px-3 py-2 text-sm rounded-md bg-white/10 border border-white/20"
@@ -606,19 +691,47 @@ const TacticalScreen = () => {
             </div>
 
             <div>
-              <h4 className="text-sm text-slate-200 font-semibold mb-2">Mazzo base</h4>
-              <div className="grid grid-cols-4 gap-2">
-                {cardDeck.map((card) => (
-                  <button
-                    key={card.id}
-                    disabled={battle.pa <= 0}
-                    onClick={() => useCard(card)}
-                    className="bg-white/5 border border-white/15 rounded-lg p-2 text-left hover:border-white/40 disabled:opacity-50"
-                  >
-                    <p className="text-xs font-semibold">{card.name}</p>
-                    <p className="text-[11px] text-slate-300">{card.desc}</p>
-                  </button>
-                ))}
+              <h4 className="text-sm text-slate-200 font-semibold mb-3">Mano ({battle.hand.length} carte • Deck: {battle.deck.length})</h4>
+              <div className="grid grid-cols-4 gap-3">
+                {battle.hand.map((card, idx) => {
+                  const combos = detectCombos(battle.hand);
+                  const isCombo = (combos.get(card.comboSymbol) || 0) >= 2;
+                  const canPlay = battle.pa >= card.paCost;
+
+                  return (
+                    <button
+                      key={`${card.id}-${idx}`}
+                      disabled={!canPlay}
+                      onClick={() => useCard(card)}
+                      className={cn(
+                        "relative bg-gradient-to-br from-slate-800 to-slate-900 border-2 rounded-xl p-3 text-left transition-all duration-200",
+                        canPlay ? "hover:scale-105 hover:shadow-2xl cursor-pointer" : "opacity-40 cursor-not-allowed",
+                        isCombo && "border-amber-400 shadow-lg shadow-amber-500/50 animate-pulse"
+                      )}
+                      style={{ borderColor: isCombo ? '#fbbf24' : 'rgba(255,255,255,0.15)' }}
+                    >
+                      {/* PA Cost Badge */}
+                      <div className="absolute -top-2 -right-2 w-8 h-8 rounded-full bg-amber-500 border-2 border-amber-300 flex items-center justify-center shadow-lg">
+                        <span className="text-black font-black text-sm">{card.paCost}</span>
+                      </div>
+
+                      {/* Card Content */}
+                      <div className="flex flex-col h-24 justify-between">
+                        <div>
+                          <p className="text-xs font-bold text-white uppercase tracking-wide">{card.name}</p>
+                          <p className="text-xl font-black text-cyan-300 mt-1">{card.value}</p>
+                          <p className="text-[10px] text-slate-400">{card.type}</p>
+                        </div>
+
+                        {/* Combo Symbol */}
+                        <div className="flex items-center justify-start">
+                          <span className="text-2xl">{COMBO_SYMBOL_EMOJI[card.comboSymbol]}</span>
+                          {isCombo && <span className="ml-1 text-amber-400 text-xs font-bold">COMBO!</span>}
+                        </div>
+                      </div>
+                    </button>
+                  );
+                })}
               </div>
             </div>
 

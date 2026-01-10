@@ -112,14 +112,14 @@ export const GAME_DATA = {
   },
 
   BASE_CARDS: [
-    { id: 'card_1', name: "Colpo Rapido", paCost: 1, type: "Attack" },
-    { id: 'card_2', name: "Attacco Standard", paCost: 2, type: "Attack" },
-    { id: 'card_3', name: "Preparazione", paCost: 1, type: "Defense" },
-    { id: 'card_4', name: "Spinta Tattica", paCost: 1, type: "Movement" },
-    { id: 'card_5', name: "Curazione Leggera", paCost: 2, type: "Heal" },
-    { id: 'card_6', name: "Ricarica Mente", paCost: 1, type: "Utility" },
-    { id: 'card_7', name: "Debolezza Esposta", paCost: 2, type: "Debuff" },
-    { id: 'card_8', name: "Tregua Breve", paCost: 0, type: "Utility" },
+    { id: 'card_1', name: "Colpo Rapido", paCost: 1, type: "Attack", comboSymbol: "Volt" as ComboSymbol, value: 3, description: "Attacco rapido che infligge 3 danni" },
+    { id: 'card_2', name: "Attacco Standard", paCost: 2, type: "Attack", comboSymbol: "Fire" as ComboSymbol, value: 5, description: "Attacco potenziato che infligge 5 danni" },
+    { id: 'card_3', name: "Preparazione", paCost: 1, type: "Defense", comboSymbol: "Shield" as ComboSymbol, value: 4, description: "Ottieni 4 punti scudo" },
+    { id: 'card_4', name: "Spinta Tattica", paCost: 1, type: "Movement", comboSymbol: "Link" as ComboSymbol, value: 2, description: "Movimento tattico avanzato" },
+    { id: 'card_5', name: "Curazione Leggera", paCost: 2, type: "Heal", comboSymbol: "Link" as ComboSymbol, value: 4, description: "Recupera 4 HP" },
+    { id: 'card_6', name: "Ricarica Mente", paCost: 1, type: "Utility", comboSymbol: "Volt" as ComboSymbol, value: 1, description: "Ricarica risorse mentali" },
+    { id: 'card_7', name: "Debolezza Esposta", paCost: 2, type: "Debuff", comboSymbol: "Fire" as ComboSymbol, value: 2, description: "Riduce la difesa nemica" },
+    { id: 'card_8', name: "Tregua Breve", paCost: 0, type: "Utility", comboSymbol: "Shield" as ComboSymbol, value: 0, description: "Momento di pausa tattica" },
   ],
 
   CLASS_COLORS: {
@@ -245,11 +245,23 @@ export interface HeroAbility {
   description: string;
 }
 
+export type ComboSymbol = 'Fire' | 'Volt' | 'Shield' | 'Link';
+
+export const COMBO_SYMBOL_EMOJI: Record<ComboSymbol, string> = {
+  Fire: '🔥',
+  Volt: '⚡',
+  Shield: '🛡️',
+  Link: '🔗',
+};
+
 export interface GameCard {
   id: string;
   name: string;
   paCost: number;
   type: CardType;
+  comboSymbol: ComboSymbol;
+  value?: number;
+  description: string;
 }
 
 export const CARD_DATA: Record<string, GameCard> = GAME_DATA.BASE_CARDS.reduce(
