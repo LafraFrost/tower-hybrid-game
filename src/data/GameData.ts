@@ -374,6 +374,13 @@ export function getHeroData(heroName: HeroName, mode: 'SOLO' | 'MULTI'): any {
 export function createPlayerState(heroName: HeroName): ILocalPlayerState {
   const stats = GAME_DATA.HERO_STATS[heroName];
   const abilities = GAME_DATA.HERO_ABILITIES[heroName];
+  const profile = HERO_PROFILES[heroName];
+  
+  // Generate hand from hero's initial deck using CARD_DATA
+  const initialHand: GameCard[] = profile.initialDeck
+    .slice(0, 5)
+    .map(cardId => CARD_DATA[cardId])
+    .filter(card => card !== undefined);
   
   return {
     heroName,
@@ -386,7 +393,7 @@ export function createPlayerState(heroName: HeroName): ILocalPlayerState {
     r2Name: stats.R2_NAME,
     defense: stats.DEF_INIT,
     heroClass: stats.class as HeroClass,
-    hand: [...GAME_DATA.BASE_CARDS].slice(0, 5),
+    hand: initialHand,
     abilities: [...abilities],
   };
 }

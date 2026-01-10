@@ -819,7 +819,7 @@ const TacticalScreen = () => {
 
             <div>
               <h4 className="text-sm text-slate-200 font-semibold mb-3">Mano ({battle.hand.length} carte • Deck: {battle.deck.length})</h4>
-              <div className="grid grid-cols-4 gap-3">
+              <div className="flex gap-3 items-center justify-center flex-wrap">
                 {battle.hand.map((card, idx) => {
                   const canPlay = battle.pa >= card.paCost;
                   const isSelected = selectedCard === card;
@@ -850,17 +850,15 @@ const TacticalScreen = () => {
                       disabled={!canPlay}
                       onClick={() => useCard(card)}
                       className={cn(
-                        "relative bg-gradient-to-br from-slate-800 to-slate-900 border-3 rounded-xl p-4 text-left transition-all duration-300",
+                        "relative bg-gradient-to-br from-slate-800 to-slate-900 rounded-xl p-4 text-left transition-all duration-300",
+                        "w-[150px] h-[220px] flex-shrink-0",
                         canPlay ? "hover:scale-105 cursor-pointer" : "opacity-40 cursor-not-allowed",
-                        isSelected && "ring-4 ring-white"
+                        isSelected && "ring-4 ring-white scale-105"
                       )}
                       style={{ 
-                        width: '140px',
-                        height: '200px',
                         borderWidth: '3px',
                         borderColor: isSelected ? '#fff' : isSignatureBothPresent ? 'rgba(251,191,36,0.6)' : 'rgba(255,255,255,0.15)',
-                        boxShadow: isSignatureBothPresent ? '0 0 30px rgba(251,191,36,0.8)' : (isCompatible && symbolStyle) ? symbolStyle.shadow : 'none',
-                        transform: isSelected ? 'scale(1.05)' : 'scale(1)'
+                        boxShadow: isSignatureBothPresent ? '0 0 30px rgba(251,191,36,0.8)' : (isCompatible && symbolStyle) ? symbolStyle.shadow : 'none'
                       }}
                     >
                       {/* PA Cost Badge */}
@@ -893,9 +891,9 @@ const TacticalScreen = () => {
                           <p className="text-xs text-slate-400">{card.type}</p>
                         </div>
                         
-                        {/* Show Special badge ONLY for signature pair */}
+                        {/* Show Special badge ONLY for signature pair - positioned absolute */}
                         {isSignatureBothPresent && (
-                          <div className="mt-2 px-2 py-1 bg-amber-500/30 rounded-full shadow-[0_0_10px_rgba(251,191,36,0.6)] animate-pulse">
+                          <div className="absolute -top-2 -right-2 px-2 py-1 bg-amber-500/30 rounded-full shadow-[0_0_10px_rgba(251,191,36,0.6)] animate-pulse border border-amber-400/40 z-20">
                             <span className="text-amber-200 text-[10px] font-bold uppercase">⭐ Combo!</span>
                           </div>
                         )}
