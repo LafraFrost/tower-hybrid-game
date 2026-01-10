@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { supabase } from '@/lib/supabaseClient';
+import { MiniCombat } from '@/components/MiniCombat';
 
 const buildingAssets: Record<string, string> = {
   sawmill: '/assets/segheria.png',
@@ -132,6 +133,7 @@ const HomeDashboard = () => {
   const [isDefending, setIsDefending] = useState(false);
   const [defendedBuildings, setDefendedBuildings] = useState<string[]>([]);
   const [ruinedBuildings, setRuinedBuildings] = useState<string[]>([]);
+  const [activeMiniCombat, setActiveMiniCombat] = useState<string | null>(null);
   const [showCampPopup, setShowCampPopup] = useState(false);
   const [showRepairPopup, setShowRepairPopup] = useState(false);
   const [repairTarget, setRepairTarget] = useState<any>(null);
@@ -140,7 +142,6 @@ const HomeDashboard = () => {
 
   type Toast = { id: number; type: 'success' | 'error' | 'warning' | 'info'; message: string; persistent?: boolean; duration?: number };
   const [toasts, setToasts] = useState<Toast[]>([]);
-  const [goblinToastId, setGoblinToastId] = useState<number | null>(null);
   const showToast = (type: Toast['type'], message: string, options?: { duration?: number; persistent?: boolean }) => {
     const id = Date.now() + Math.floor(Math.random() * 1000);
     const duration = options?.duration ?? 3000;
@@ -373,22 +374,13 @@ const HomeDashboard = () => {
             gold: resData.gold || 0 
           });
         }
-        // Fetch mine unlock status separately with robust error handling
+        // Try localStorage for mine unlock status - skip Supabase query to avoid 400 errors
         try {
-          const { data: unlockData, error: unlockErr } = await supabase
-            .from('user_resources')
-            .select('is_mine_unlocked')
-            .eq('user_id', 1)
-            .maybeSingle();
-          if (!unlockErr && unlockData && unlockData.is_mine_unlocked !== undefined) {
-            setIsMineUnlocked(!!unlockData.is_mine_unlocked);
-            console.log('🔓 Mine unlock status:', !!unlockData.is_mine_unlocked);
-          } else {
-            setIsMineUnlocked(false);
-            console.warn('⚠️ is_mine_unlocked not found or error:', unlockErr);
-          }
+          const unlockStatus = localStorage.getItem('is_mine_unlocked');
+          setIsMineUnlocked(unlockStatus === 'true');
+          console.log('🔓 Mine unlock status (localStorage):', unlockStatus === 'true');
         } catch (e) {
-          console.warn('❌ is_mine_unlocked query failed, using fallback:', e);
+          console.warn('⚠️ Could not load mine unlock status:', e);
           setIsMineUnlocked(false);
         }
       } catch (err) {
@@ -446,21 +438,11 @@ const HomeDashboard = () => {
     } catch {}
   }, [isDefending]);
 
-  // Quando attacco goblin si attiva, mostra un Toast persistente e passa direttamente a modalità difesa
+  // Quando attacco goblin si attiva, passa direttamente a modalità difesa (banner fisso al top, no toast)
   useEffect(() => {
     if (isGoblinAttackActive) {
       console.log('🚨 Goblin attack activated! Entering defense mode immediately.');
       setIsDefending(true);
-      if (goblinToastId == null) {
-        const id = Date.now();
-        setGoblinToastId(id);
-        setToasts((prev) => [{ id, type: 'warning', message: '⚠️ VILLAGGIO SOTTO ATTACCO! Difendi le tue costruzioni!', persistent: true }, ...prev]);
-      }
-    } else {
-      if (goblinToastId != null) {
-        dismissToast(goblinToastId);
-        setGoblinToastId(null);
-      }
     }
   }, [isGoblinAttackActive]);
 
@@ -682,15 +664,57 @@ const HomeDashboard = () => {
     }
   };
 
+  const handleMiniCombatVictory = (buildingName: string) => {
+    // Mark building as defended
+    const updatedDefended = [...defendedBuildings, buildingName];
+    setDefendedBuildings(updatedDefended);
+    try {
+      localStorage.setItem('defended_buildings', JSON.stringify(updatedDefended));
+    } catch {}
+    
+    // Close mini combat
+    setActiveMiniCombat(null);
+    
+    // Show victory toast
+    showToast('success', `✅ ${buildingName} è stato difeso!`, { duration: 3000 });
+    
+    console.log('🎉 Mini combat victory:', buildingName);
+  };
+
+  const handleMiniCombatDefeat = (buildingName: string) => {
+    // Mark building as ruined
+    const updatedRuined = [...ruinedBuildings, buildingName];
+    setRuinedBuildings(updatedRuined);
+    try {
+      localStorage.setItem('ruined_buildings', JSON.stringify(updatedRuined));
+    } catch {}
+    
+    // Close mini combat
+    setActiveMiniCombat(null);
+    
+    // Show defeat toast
+    showToast('error', `❌ ${buildingName} è stato distrutto!`, { duration: 3000 });
+    
+    console.log('💀 Mini combat defeat:', buildingName);
+  };
+
   return (
     <div
       style={{ width: '100vw', height: '100vh', display: 'flex', justifyContent: 'center', alignItems: 'center', backgroundColor: '#1a1a1a', position: 'relative' }}
     >
+      {/* Mini Combat Overlay */}
+      {activeMiniCombat && (
+        <MiniCombat
+          buildingName={activeMiniCombat}
+          onVictory={() => handleMiniCombatVictory(activeMiniCombat)}
+          onDefeat={() => handleMiniCombatDefeat(activeMiniCombat)}
+        />
+      )}
       <MenuButton />
       <DevTriggerButton isActive={isGoblinAttackActive} onToggle={toggleGoblinAttack} />
       <ResourceBar resources={resources} />
 
-      {/* Toast container - bottom-right corner */}
+      {/* Toast container - bottom-right corner, pointer-events-none by default */}
       <div style={{ position: 'fixed', bottom: '20px', right: '20px', zIndex: 5000, display: 'flex', flexDirection: 'column', gap: '8px', pointerEvents: 'none', maxWidth: '400px' }}>
         {toasts.map((t) => {
           const isResourceToast = ['🪵', '🪨', '💰'].some(emoji => t.message.includes(emoji));
@@ -737,6 +761,15 @@ const HomeDashboard = () => {
       {/* Container Globale degli Eventi */}
       <div className="fixed inset-0 z-[60] pointer-events-none">
         
+        {/* BANNER ATTACCO FISSO IN ALTO */}
+        {isGoblinAttackActive && (
+          <div className="fixed top-0 left-1/2 -translate-x-1/2 z-[70] w-full pointer-events-none">
+            <div className="flex items-center justify-center bg-red-600/90 text-white py-3 font-black text-lg">
+              🚨 VILLAGGIO SOTTO ATTACCO! CLICCA SULLE SPADE PER DIFENDERE 🚨
+            </div>
+          </div>
+        )}
+        
         {/* 1. Overlay Rosso (Solo Visivo) */}
         {isGoblinAttackActive && (
           <div className={`absolute inset-0 transition-opacity duration-1000 ${
@@ -762,7 +795,7 @@ const HomeDashboard = () => {
 
         {/* 3. Banner Persistente (Non blocca i click) */}
         {isDefending && isGoblinAttackActive && (
-          <div className="absolute top-10 left-1/2 -translate-x-1/2 bg-red-600 text-white px-6 py-2 rounded-full font-black animate-bounce pointer-events-none">
+          <div className="absolute top-20 left-1/2 -translate-x-1/2 bg-red-600 text-white px-6 py-2 rounded-full font-black animate-bounce pointer-events-none">
             🔥 DIFESA IN CORSO: CLICCA SULLE SPADE 🔥
           </div>
         )}
@@ -848,9 +881,8 @@ const HomeDashboard = () => {
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
-                    // Navigate to tactical with building context
-                    setSelectedLocation(null);
-                    window.location.href = `/solo?targetBuilding=${encodeURIComponent(loc.name)}&return=village`;
+                    // Start mini combat for this building
+                    setActiveMiniCombat(loc.name);
                   }}
                   style={{
                     position: 'absolute',
