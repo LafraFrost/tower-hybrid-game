@@ -2,7 +2,7 @@ import { NeonButton } from "@/components/NeonButton";
 import { useLocation } from "wouter";
 import { motion } from "framer-motion";
 import { useState } from "react";
-import { GAME_DATA, type HeroName } from "@/data/GameData";
+import { CARD_DATA, GAME_DATA, getHeroData, type HeroName } from "@/data/GameData";
 import { useHero } from "@/context/HeroContext";
 import { Shield, Sword, Sparkles, Heart, Wrench, ArrowLeft } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -20,9 +20,13 @@ export default function HeroSelection() {
   const { selectHero, setGameMode } = useHero();
   const [hoveredHero, setHoveredHero] = useState<HeroName | null>(null);
   const [selectedHeroName, setSelectedHeroName] = useState<HeroName | null>(null);
+  const heroSoloData = selectedHeroName ? getHeroData(selectedHeroName, 'SOLO') : null;
 
   const handleSelectHero = (heroName: HeroName) => {
     setSelectedHeroName(heroName);
+    const data = getHeroData(heroName, 'SOLO');
+    console.log('🎯 Hero Solo Data:', data);
+    console.log('🃏 CARD_DATA:', CARD_DATA);
   };
 
   const handleDeploy = () => {
@@ -37,6 +41,14 @@ export default function HeroSelection() {
   const previewHero = hoveredHero || selectedHeroName;
   const previewStats = previewHero ? GAME_DATA.HERO_STATS[previewHero] : null;
   const previewAbilities = previewHero ? GAME_DATA.HERO_ABILITIES[previewHero] : null;
+  const cardTypeColors: Record<string, string> = {
+    Attack: 'text-red-400',
+    Defense: 'text-blue-400',
+    Movement: 'text-orange-400',
+    Heal: 'text-green-400',
+    Utility: 'text-cyan-300',
+    Debuff: 'text-purple-300',
+  };
 
   return (
     <div className="min-h-screen bg-black flex flex-col relative overflow-hidden p-4">
@@ -128,6 +140,52 @@ export default function HeroSelection() {
                 <div>{previewStats.R2_NAME}: 0/{previewStats.R2_MAX}</div>
               </div>
             </div>
+
+            {heroSoloData && (
+              <div className="mt-2 p-3 rounded border border-gray-800 bg-black/50 space-y-2">
+                <p className="text-[10px] text-cyan-300 uppercase tracking-wider">Dotazione Campagna Solo</p>
+                <div className="text-xs font-mono text-gray-200 flex items-center gap-3 flex-wrap">
+                  <span>❤️ HP: {heroSoloData.hp}</span>
+                  <span>🛡️ DEF: {heroSoloData.def}</span>
+                  <span>⚡ Risorsa: {heroSoloData.resourceMax} ({GAME_DATA.HERO_STATS[heroSoloData.name].R2_NAME})</span>
+                </div>
+
+                <div className="mt-2">
+                  <p className="text-[10px] text-fuchsia-300 uppercase tracking-wider mb-2">Mazzo Iniziale ({heroSoloData.initialDeck?.length || 0} carte)</p>
+                  <div className="grid grid-cols-4 gap-2">
+                    {heroSoloData.initialDeck?.map((cardId, idx) => {
+                      const card = CARD_DATA[cardId];
+                      const isMissing = !card;
+                      
+                      return (
+                        <div
+                          key={`${cardId}-${idx}`}
+                          className={cn(
+                            "p-2 rounded border shadow-sm",
+                            isMissing ? "border-red-500 bg-red-950/50" : "border-gray-800 bg-gray-950/70"
+                          )}
+                          title={card?.name || `Missing: ${cardId}`}
+                        >
+                          {isMissing ? (
+                            <>
+                              <div className="text-[11px] font-semibold text-red-400 truncate">MISSING</div>
+                              <div className="text-[10px] font-mono text-red-300">{cardId}</div>
+                            </>
+                          ) : (
+                            <>
+                              <div className="text-[11px] font-semibold text-white truncate">{card.name}</div>
+                              <div className={cn("text-[10px] font-mono", cardTypeColors[card.type || 'Utility'])}>
+                                {card.type}
+                              </div>
+                            </>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+            )}
             
             <div className="space-y-2">
               <p className="text-[10px] text-fuchsia-400 uppercase tracking-wider">Abilities</p>

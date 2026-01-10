@@ -135,6 +135,109 @@ export type HeroName = keyof typeof GAME_DATA.HERO_STATS;
 export type HeroClass = 'Tank' | 'DPS' | 'Control' | 'Support' | 'Specialist';
 export type CardType = 'Attack' | 'Defense' | 'Movement' | 'Heal' | 'Utility' | 'Debuff';
 
+export interface HeroProfile {
+  id: string;
+  name: HeroName;
+  class: HeroClass;
+  hp: number;
+  def: number;
+  resourceMax: number;
+  initialDeck: string[];
+}
+
+export const HERO_PROFILES: Record<HeroName, HeroProfile> = {
+  Baluardo: {
+    id: 'baluardo',
+    name: 'Baluardo',
+    class: 'Tank',
+    hp: 15,
+    def: 1,
+    resourceMax: 5,
+    initialDeck: ['card_3', 'card_3', 'card_3', 'card_2', 'card_2', 'card_2', 'card_5', 'card_5'],
+  },
+  Sentinella: {
+    id: 'sentinella',
+    name: 'Sentinella',
+    class: 'Tank',
+    hp: 14,
+    def: 2,
+    resourceMax: 4,
+    initialDeck: ['card_3', 'card_3', 'card_3', 'card_2', 'card_2', 'card_2', 'card_5', 'card_5'],
+  },
+  Ombra: {
+    id: 'ombra',
+    name: 'Ombra',
+    class: 'DPS',
+    hp: 12,
+    def: 0,
+    resourceMax: 4,
+    initialDeck: ['card_1', 'card_1', 'card_2', 'card_2', 'card_6', 'card_8', 'card_3', 'card_3'],
+  },
+  Assassina: {
+    id: 'assassina',
+    name: 'Assassina',
+    class: 'DPS',
+    hp: 11,
+    def: 0,
+    resourceMax: 5,
+    initialDeck: ['card_1', 'card_1', 'card_2', 'card_2', 'card_6', 'card_8', 'card_3', 'card_3'],
+  },
+  Cronomante: {
+    id: 'cronomante',
+    name: 'Cronomante',
+    class: 'Control',
+    hp: 10,
+    def: 0,
+    resourceMax: 6,
+    initialDeck: ['card_6', 'card_6', 'card_5', 'card_8', 'card_3', 'card_3', 'card_3', 'card_1'],
+  },
+  Elementalista: {
+    id: 'elementalista',
+    name: 'Elementalista',
+    class: 'Control',
+    hp: 10,
+    def: 0,
+    resourceMax: 5,
+    initialDeck: ['card_6', 'card_6', 'card_5', 'card_8', 'card_3', 'card_3', 'card_3', 'card_1'],
+  },
+  Archivista: {
+    id: 'archivista',
+    name: 'Archivista',
+    class: 'Support',
+    hp: 11,
+    def: 0,
+    resourceMax: 4,
+    initialDeck: ['card_6', 'card_5', 'card_5', 'card_8', 'card_3', 'card_3', 'card_3', 'card_1'],
+  },
+  Mistica: {
+    id: 'mistica',
+    name: 'Mistica',
+    class: 'Support',
+    hp: 10,
+    def: 0,
+    resourceMax: 4,
+    initialDeck: ['card_6', 'card_5', 'card_5', 'card_8', 'card_3', 'card_3', 'card_3', 'card_1'],
+  },
+  Ingegnere: {
+    id: 'ingegnere',
+    name: 'Ingegnere',
+    class: 'Specialist',
+    hp: 13,
+    def: 1,
+    resourceMax: 5,
+    initialDeck: ['card_6', 'card_6', 'card_2', 'card_2', 'card_3', 'card_3', 'card_5', 'card_5'],
+  },
+  Predatore: {
+    id: 'predatore',
+    name: 'Predatore',
+    class: 'Specialist',
+    hp: 14,
+    def: 0,
+    resourceMax: 5,
+    initialDeck: ['card_6', 'card_6', 'card_2', 'card_2', 'card_3', 'card_3', 'card_5', 'card_5'],
+  },
+};
+
 export interface HeroAbility {
   name: string;
   paCost: number;
@@ -148,6 +251,14 @@ export interface GameCard {
   paCost: number;
   type: CardType;
 }
+
+export const CARD_DATA: Record<string, GameCard> = GAME_DATA.BASE_CARDS.reduce(
+  (acc, card) => {
+    acc[card.id] = card;
+    return acc;
+  },
+  {} as Record<string, GameCard>
+);
 
 export interface IUnit {
   id: string;
@@ -176,6 +287,19 @@ export interface ILocalPlayerState {
   heroClass: HeroClass;
   hand: GameCard[];
   abilities: HeroAbility[];
+}
+
+export type GameMode = 'SOLO' | 'TABLETOP';
+
+export function getHeroData(heroName: HeroName, mode: GameMode) {
+  if (mode === 'SOLO') {
+    return HERO_PROFILES[heroName];
+  }
+
+  return {
+    stats: GAME_DATA.HERO_STATS[heroName],
+    abilities: GAME_DATA.HERO_ABILITIES[heroName],
+  };
 }
 
 export function createPlayerState(heroName: HeroName): ILocalPlayerState {
