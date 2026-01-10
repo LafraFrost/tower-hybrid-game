@@ -348,16 +348,19 @@ export const HERO_SIGNATURE_CARDS: Record<HeroName, [string, string]> = {
   Predatore: ['sig_predatore_1', 'sig_predatore_2'],
 };
 
-export function isSignatureCombo(heroName: HeroName, cardId1: string, cardId2: string): boolean {
-  const [sig1, sig2] = HERO_SIGNATURE_CARDS[heroName];
-  return (cardId1 === sig1 && cardId2 === sig2) || (cardId1 === sig2 && cardId2 === sig1);
-}
-
 export function getHeroSignatureSymbol(heroName: HeroName): ComboSymbol {
   const [sigCardId] = HERO_SIGNATURE_CARDS[heroName];
   const card = CARD_DATA[sigCardId];
   return card?.comboSymbol || 'Fire';
 }
+
+export function isSignatureCombo(heroName: HeroName, cardId1: string, cardId2: string): boolean {
+  const [sig1, sig2] = HERO_SIGNATURE_CARDS[heroName];
+  return (cardId1 === sig1 && cardId2 === sig2) || (cardId1 === sig2 && cardId2 === sig1);
+}
+
+// QUESTA È LA RIGA CHE MANCAVA:
+export function getHeroData(heroName: HeroName, mode: 'SOLO' | 'MULTI'): any {
   if (mode === 'SOLO') {
     return HERO_PROFILES[heroName];
   }
