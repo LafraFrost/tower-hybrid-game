@@ -284,6 +284,7 @@ const TacticalScreen = () => {
   const [selectedCard, setSelectedCard] = useState<GameCard | null>(null);
   const [mulliganMode, setMulliganMode] = useState(false);
   const [mulliganSelected, setMulliganSelected] = useState<GameCard[]>([]);
+  const [showReshuffleMsg, setShowReshuffleMsg] = useState(false);
 
   // Load progress on mount (localStorage first, then sync with DB when selectedHero is ready)
   useEffect(() => {
@@ -417,7 +418,13 @@ const TacticalScreen = () => {
   const startBattle = (node: Node) => {
     const heroProfile = HERO_PROFILES[selectedHero as HeroName];
     const initialDeck = heroProfile ? shuffleDeck([...heroProfile.initialDeck]) : [];
-    const { drawn, remaining, newDiscard, reshuffled, overflowCount } = drawCards(initialDeck, 4, [], 0);
+    const { drawn, remaining, newDiscard, reshuffled, overflowCount } = drawCards(initialDeck, 3, [], 0);
+    
+    // Trigger reshuffle toast if needed
+    if (reshuffled) {
+      setShowReshuffleMsg(true);
+      setTimeout(() => setShowReshuffleMsg(false), 2000);
+    }
     
     const base: BattleState = {
       enemyHp: node.type === "Boss" ? 26 : 14,
@@ -432,7 +439,7 @@ const TacticalScreen = () => {
       discardPile: newDiscard,
       feedbackMessage: overflowCount > 0 
         ? `⚠️ Mano piena! ${overflowCount} carte scartate.`
-        : reshuffled ? "♻️ Mazzo rimescolato! Hai pescato 4 carte" : "Hai pescato 4 carte",
+        : reshuffled ? "♻️ Mazzo rimescolato! Hai pescato 3 carte" : "Hai pescato 3 carte",
     };
     const rolled = rollBonus(base);
     setBattleNode(node);
@@ -623,12 +630,14 @@ const TacticalScreen = () => {
     const updatedDiscardPile = [...battle.discardPile, ...remainingHandIds];
 
     // Step 2-3: Pesca nuova mano (drawCards gestisce auto-reshuffle con Fisher-Yates)
-    // Se deck < 4 carte, drawCards rimescola automaticamente gli scarti nel mazzo
+    // Se deck < 3 carte, drawCards rimescola automaticamente gli scarti nel mazzo
     // Pass 0 for currentHandSize since we just discarded all cards
-    const { drawn, remaining, newDiscard, reshuffled, overflowCount } = drawCards(battle.deck, 4, updatedDiscardPile, 0);
+    const { drawn, remaining, newDiscard, reshuffled, overflowCount } = drawCards(battle.deck, 3, updatedDiscardPile, 0);
     
-    // Step 4: Log del rimescolamento (se avvenuto)
+    // Step 4: Trigger reshuffle toast and log
     if (reshuffled) {
+      setShowReshuffleMsg(true);
+      setTimeout(() => setShowReshuffleMsg(false), 2000);
       appendLog("♻️ Mazzo rimescolato dalla pila degli scarti!");
     }
     if (overflowCount > 0) {
@@ -649,7 +658,7 @@ const TacticalScreen = () => {
       discardPile: newDiscard,
       feedbackMessage: overflowCount > 0 
         ? `⚠️ Pescate ${drawn.length} carte (${overflowCount} scartate per limite)` 
-        : drawn.length < 4 ? `⚠️ Pescate solo ${drawn.length} carte (mazzo esaurito)` : "Hai pescato 4 carte",
+        : drawn.length < 3 ? `⚠️ Pescate solo ${drawn.length} carte (mazzo esaurito)` : "Hai pescato 3 carte",
     };
     const rolled = rollBonus(refreshed);
     setBattle(rolled);
@@ -804,6 +813,17 @@ const TacticalScreen = () => {
 
   return (
     <div className="min-h-screen bg-slate-950 text-white relative overflow-hidden">
+      {/* Reshuffle Toast Message */}
+      {showReshuffleMsg && (
+        <div className="fixed inset-0 flex items-center justify-center z-50 pointer-events-none animate-in fade-in zoom-in duration-300">
+          <div className="bg-black/60 backdrop-blur-md px-12 py-8 rounded-xl border-2 border-yellow-400 shadow-2xl">
+            <p className="text-6xl font-black italic text-yellow-400 drop-shadow-2xl animate-pulse">
+              ♻️ MAZZO RIMESCOLATO ♻️
+            </p>
+          </div>
+        </div>
+      )}
+      
       <div
         className="absolute inset-0 pointer-events-none"
         style={{
