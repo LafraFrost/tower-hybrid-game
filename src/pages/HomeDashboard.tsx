@@ -157,22 +157,27 @@ const HomeDashboard = () => {
 
   const prevResRef = useRef<{ wood: number; stone: number; gold: number }>({ wood: 0, stone: 0, gold: 0 });
   const firstResLoadRef = useRef(true);
-  const initTimeRef = useRef<number>(Date.now());
+  const allowToastRef = useRef(false);
+
+  // Allow toasts after 2 seconds
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      allowToastRef.current = true;
+    }, 2000);
+    return () => clearTimeout(timer);
+  }, []);
+
   useEffect(() => {
     const prev = prevResRef.current;
     if (firstResLoadRef.current) {
       firstResLoadRef.current = false;
-    } else {
-      // Skip resource toasts for 2 seconds after page load
-      const elapsed = Date.now() - initTimeRef.current;
-      if (elapsed > 2000) {
-        const dw = (resources.wood ?? 0) - (prev.wood ?? 0);
-        const ds = (resources.stone ?? 0) - (prev.stone ?? 0);
-        const dg = (resources.gold ?? 0) - (prev.gold ?? 0);
-        if (dw !== 0) showToast(dw > 0 ? 'success' : 'error', `🪵 ${dw > 0 ? '+' : ''}${dw}`, { duration: 2000 });
-        if (ds !== 0) showToast(ds > 0 ? 'success' : 'error', `🪨 ${ds > 0 ? '+' : ''}${ds}`, { duration: 2000 });
-        if (dg !== 0) showToast(dg > 0 ? 'success' : 'error', `💰 ${dg > 0 ? '+' : ''}${dg}`, { duration: 2000 });
-      }
+    } else if (allowToastRef.current) {
+      const dw = (resources.wood ?? 0) - (prev.wood ?? 0);
+      const ds = (resources.stone ?? 0) - (prev.stone ?? 0);
+      const dg = (resources.gold ?? 0) - (prev.gold ?? 0);
+      if (dw !== 0) showToast(dw > 0 ? 'success' : 'error', `🪵 ${dw > 0 ? '+' : ''}${dw}`, { duration: 2000 });
+      if (ds !== 0) showToast(ds > 0 ? 'success' : 'error', `🪨 ${ds > 0 ? '+' : ''}${ds}`, { duration: 2000 });
+      if (dg !== 0) showToast(dg > 0 ? 'success' : 'error', `💰 ${dg > 0 ? '+' : ''}${dg}`, { duration: 2000 });
     }
     prevResRef.current = { wood: resources.wood ?? 0, stone: resources.stone ?? 0, gold: resources.gold ?? 0 };
   }, [resources]);
@@ -368,19 +373,23 @@ const HomeDashboard = () => {
             gold: resData.gold || 0 
           });
         }
-        // Fetch mine unlock status separately to avoid column issues
+        // Fetch mine unlock status separately with robust error handling
         try {
           const { data: unlockData, error: unlockErr } = await supabase
             .from('user_resources')
             .select('is_mine_unlocked')
             .eq('user_id', 1)
             .maybeSingle();
-          if (!unlockErr && unlockData) {
+          if (!unlockErr && unlockData && unlockData.is_mine_unlocked !== undefined) {
             setIsMineUnlocked(!!unlockData.is_mine_unlocked);
             console.log('🔓 Mine unlock status:', !!unlockData.is_mine_unlocked);
+          } else {
+            setIsMineUnlocked(false);
+            console.warn('⚠️ is_mine_unlocked not found or error:', unlockErr);
           }
         } catch (e) {
-          console.warn('is_mine_unlocked not available in user_resources; ignoring.', e);
+          console.warn('❌ is_mine_unlocked query failed, using fallback:', e);
+          setIsMineUnlocked(false);
         }
       } catch (err) {
         console.error('Error loading from Supabase:', err);
@@ -731,7 +740,7 @@ const HomeDashboard = () => {
         {/* 1. Overlay Rosso (Solo Visivo) */}
         {isGoblinAttackActive && (
           <div className={`absolute inset-0 transition-opacity duration-1000 ${
-            isDefending ? 'bg-red-900/20 border-[12px] border-red-600/30 animate-pulse' : 'bg-red-600/80'
+            isDefending ? 'bg-red-900/20 border-[12px] border-red-600/30 animate-pulse pointer-events-none' : 'bg-red-600/80'
           }`} />
         )}
 
@@ -856,7 +865,8 @@ const HomeDashboard = () => {
                     cursor: 'pointer',
                     boxShadow: '0 0 20px rgba(255,140,0,0.8)',
                     animation: 'pulse 1s infinite',
-                    zIndex: 2002,
+                    zIndex: 100,
+                    pointerEvents: 'auto',
                   }}
                   title={`Difendi ${loc.name}`}
                 >
@@ -887,7 +897,8 @@ const HomeDashboard = () => {
                     cursor: 'pointer',
                     boxShadow: '0 0 20px rgba(59,130,246,0.8)',
                     animation: 'pulse 1s infinite',
-                    zIndex: 2002,
+                    zIndex: 100,
+                    pointerEvents: 'auto',
                   }}
                   title={`Ripara ${loc.name}`}
                 >
