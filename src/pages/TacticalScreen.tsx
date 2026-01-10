@@ -2,8 +2,16 @@ import React, { useEffect, useMemo, useState } from "react";
 import { useHero } from "@/context/HeroContext";
 import { loadSoloProgress, saveSoloProgress } from "@/lib/progressService";
 import { useLocation } from "wouter";
-import { CARD_DATA, HERO_PROFILES, COMBO_SYMBOL_EMOJI, type GameCard, type HeroName } from "@/data/GameData";
+import { CARD_DATA, HERO_PROFILES, COMBO_SYMBOL_EMOJI, HERO_SIGNATURE_CARDS, isSignatureCombo, getHeroSignatureSymbol, type GameCard, type HeroName, type ComboSymbol } from "@/data/GameData";
 import { cn } from "@/lib/utils";
+
+// Symbol color mapping for glow effects
+const SYMBOL_COLORS: Record<ComboSymbol, { glow: string, shadow: string, border: string }> = {
+  Fire: { glow: 'shadow-red-500/70', shadow: 'shadow-lg', border: 'border-red-400' },
+  Volt: { glow: 'shadow-yellow-500/70', shadow: 'shadow-lg', border: 'border-yellow-400' },
+  Shield: { glow: 'shadow-blue-500/70', shadow: 'shadow-lg', border: 'border-blue-400' },
+  Link: { glow: 'shadow-purple-500/70', shadow: 'shadow-lg', border: 'border-purple-400' },
+};
 
 type NodeType = "Combat" | "Event" | "Resource" | "Rest" | "Boss" | "Start";
 
@@ -74,8 +82,10 @@ const drawCards = (deck: string[], count: number): { drawn: GameCard[], remainin
 const detectCombos = (hand: GameCard[]): Map<string, number> => {
   const symbolCount = new Map<string, number>();
   hand.forEach(card => {
-    const count = symbolCount.get(card.comboSymbol) || 0;
-    symbolCount.set(card.comboSymbol, count + 1);
+    if (card.comboSymbol) {
+      const count = symbolCount.get(card.comboSymbol) || 0;
+      symbolCount.set(card.comboSymbol, count + 1);
+    }
   });
   return symbolCount;
 };
@@ -121,6 +131,7 @@ const TacticalScreen = () => {
   const [battleNode, setBattleNode] = useState<Node | null>(null);
   const [battle, setBattle] = useState<BattleState | null>(null);
   const [bossDefeated, setBossDefeated] = useState(false);
+  const [selectedCard, setSelectedCard] = useState<GameCard | null>(null);
 
   // Load progress on mount (localStorage first, then sync with DB when selectedHero is ready)
   useEffect(() => {
@@ -278,8 +289,37 @@ const TacticalScreen = () => {
   const useCard = (card: GameCard) => {
     if (!battle || battle.pa < card.paCost) return;
     
+    // Check if we're trying to combo with selected card
+    if (selectedCard && selectedCard.comboSymbol && card.comboSymbol && selectedCard.comboSymbol === card.comboSymbol && selectedCard !== card) {
+      // Check if this is a signature combo (different IDs) or common combo (same ID)
+      if (selectedHero && isSignatureCombo(selectedHero as HeroName, selectedCard.id, card.id)) {
+        executeCombo(selectedCard, card, true); // Signature combo
+      } else {
+        executeCombo(selectedCard, card, false); // Common combo
+      }
+      setSelectedCard(null);
+      return;
+    }
+    
+    // Check if there are other cards with same symbol for potential combo
+    const matchingCards = battle.hand.filter(c => c.comboSymbol && card.comboSymbol && c.comboSymbol === card.comboSymbol && c !== card);
+    
+    if (matchingCards.length > 0 && card.comboSymbol) {
+      // Select this card and highlight compatible ones
+      setSelectedCard(card);
+      setBattle({ ...battle, feedbackMessage: `Seleziona un'altra carta ${COMBO_SYMBOL_EMOJI[card.comboSymbol]} per attivare combo!` });
+      return;
+    }
+    
+    // Play single card normally
+    playSingleCard(card);
+  };
+
+  const playSingleCard = (card: GameCard) => {
+    if (!battle) return;
+    
     // Remove card from hand
-    const newHand = battle.hand.filter(c => c.id !== card.id || c !== card);
+    const newHand = battle.hand.filter(c => c !== card);
     const next = { ...battle, hand: newHand, discardPile: [...battle.discardPile, card.id] };
     next.pa -= card.paCost;
 
@@ -297,24 +337,63 @@ const TacticalScreen = () => {
       appendLog(`${card.name}: +${value} HP`);
     }
 
-    // Check for combos in new hand
-    const combos = detectCombos(newHand);
-    let comboMessage = "";
-    combos.forEach((count, symbol) => {
-      if (count >= 2) {
-        comboMessage = `Combo ${symbol} Attivata!`;
-      }
-    });
+    next.feedbackMessage = "";
+    setBattle(next);
+  };
+
+  const executeCombo = (card1: GameCard, card2: GameCard, isSignature: boolean) => {
+    if (!battle || !selectedHero) return;
+
+    // Remove both cards from hand
+    const newHand = battle.hand.filter(c => c !== card1 && c !== card2);
+    const next = { ...battle, hand: newHand, discardPile: [...battle.discardPile, card1.id, card2.id] };
     
-    if (comboMessage) {
-      next.feedbackMessage = comboMessage;
+    // Combo costs: signature 1 PA, common combo uses min PA cost
+    next.pa -= isSignature ? 1 : Math.min(card1.paCost, card2.paCost);
+
+    // Calculate combo effect: for signature combos, multiply by 2.5; for regular, add 2 bonus
+    let comboValue: number;
+    if (isSignature) {
+      comboValue = Math.round(((card1.value || 0) + (card2.value || 0)) * 2.5);
+    } else {
+      comboValue = (card1.value || 0) + (card2.value || 0) + 2;
+    }
+    
+    const symbol = card1.comboSymbol ? COMBO_SYMBOL_EMOJI[card1.comboSymbol] : '✨';
+
+    if (card1.type === "Attack" || card2.type === "Attack") {
+      const dmg = Math.round(comboValue * battle.damageMultiplier);
+      next.enemyHp = Math.max(0, next.enemyHp - dmg);
+      if (isSignature) {
+        appendLog(`⭐ MOSSA SPECIALE ${symbol}: -${dmg} HP al nemico! [x2.5]`);
+      } else {
+        appendLog(`🔥 COMBO ${symbol}: -${dmg} HP al nemico!`);
+      }
+    } else if (card1.type === "Defense" || card2.type === "Defense") {
+      next.playerShield += comboValue;
+      if (isSignature) {
+        appendLog(`⭐ MOSSA SPECIALE ${symbol}: +${comboValue} Scudo! [x2.5]`);
+      } else {
+        appendLog(`🔥 COMBO ${symbol}: +${comboValue} Scudo!`);
+      }
+    } else if (card1.type === "Heal" || card2.type === "Heal") {
+      next.playerHp = Math.min(14, next.playerHp + comboValue);
+      if (isSignature) {
+        appendLog(`⭐ MOSSA SPECIALE ${symbol}: +${comboValue} HP! [x2.5]`);
+      } else {
+        appendLog(`🔥 COMBO ${symbol}: +${comboValue} HP!`);
+      }
     }
 
+    next.feedbackMessage = isSignature ? `⭐ Mossa Speciale ${symbol} [x2.5]` : `🔥 Combo ${symbol} [+2 Bonus]`;
     setBattle(next);
   };
 
   const endTurn = () => {
     if (!battle || !battleNode) return;
+
+    // Clear selected card on turn end
+    setSelectedCard(null);
 
     let nextHp = battle.playerHp;
     if (battle.enemyHp > 0) {
@@ -694,9 +773,28 @@ const TacticalScreen = () => {
               <h4 className="text-sm text-slate-200 font-semibold mb-3">Mano ({battle.hand.length} carte • Deck: {battle.deck.length})</h4>
               <div className="grid grid-cols-4 gap-3">
                 {battle.hand.map((card, idx) => {
-                  const combos = detectCombos(battle.hand);
-                  const isCombo = (combos.get(card.comboSymbol) || 0) >= 2;
                   const canPlay = battle.pa >= card.paCost;
+                  const isSelected = selectedCard === card;
+                  
+                  // Check if this is a signature card
+                  const isSignatureCard = selectedHero && HERO_SIGNATURE_CARDS[selectedHero as HeroName]?.includes(card.id);
+                  
+                  // Find the other signature card in hand (not this one)
+                  const otherSignatureInHand = selectedHero && isSignatureCard ? battle.hand.find(c => 
+                    HERO_SIGNATURE_CARDS[selectedHero as HeroName]?.includes(c.id) && c.id !== card.id
+                  ) : null;
+                  
+                  // Signature pair is present only if BOTH cards are in hand
+                  const isSignatureBothPresent = isSignatureCard && otherSignatureInHand !== undefined;
+                  
+                  // Check if this card is compatible with selected card (for combo)
+                  const isCompatible = selectedCard && 
+                    selectedCard !== card && 
+                    isSignatureCard && 
+                    selectedHero && 
+                    isSignatureCombo(selectedHero as HeroName, card.id, selectedCard.id);
+                  
+                  const symbolStyle = card.comboSymbol ? SYMBOL_COLORS[card.comboSymbol] : null;
 
                   return (
                     <button
@@ -704,30 +802,61 @@ const TacticalScreen = () => {
                       disabled={!canPlay}
                       onClick={() => useCard(card)}
                       className={cn(
-                        "relative bg-gradient-to-br from-slate-800 to-slate-900 border-2 rounded-xl p-3 text-left transition-all duration-200",
-                        canPlay ? "hover:scale-105 hover:shadow-2xl cursor-pointer" : "opacity-40 cursor-not-allowed",
-                        isCombo && "border-amber-400 shadow-lg shadow-amber-500/50 animate-pulse"
+                        "relative bg-gradient-to-br from-slate-800 to-slate-900 border-3 rounded-xl p-4 text-left transition-all duration-300",
+                        canPlay ? "hover:scale-110 hover:-translate-y-2 cursor-pointer" : "opacity-40 cursor-not-allowed",
+                        isSelected && "scale-110 -translate-y-2 ring-4 ring-white",
+                        // Golden glow ONLY if both signature cards are present
+                        isSignatureBothPresent && "shadow-[0_0_30px_rgba(251,191,36,0.8)]",
+                        isCompatible && symbolStyle && `${symbolStyle.border} ${symbolStyle.shadow} ${symbolStyle.glow} animate-pulse scale-105`
                       )}
-                      style={{ borderColor: isCombo ? '#fbbf24' : 'rgba(255,255,255,0.15)' }}
+                      style={{ 
+                        borderWidth: '3px',
+                        borderColor: isSelected ? '#fff' : isSignatureBothPresent ? 'rgba(251,191,36,0.6)' : 'rgba(255,255,255,0.15)',
+                        minWidth: '140px'
+                      }}
                     >
                       {/* PA Cost Badge */}
-                      <div className="absolute -top-2 -right-2 w-8 h-8 rounded-full bg-amber-500 border-2 border-amber-300 flex items-center justify-center shadow-lg">
-                        <span className="text-black font-black text-sm">{card.paCost}</span>
+                      <div className="absolute -top-3 -right-3 w-10 h-10 rounded-full bg-amber-500 border-3 border-amber-300 flex items-center justify-center shadow-xl z-10">
+                        <span className="text-black font-black text-base">{card.paCost}</span>
+                      </div>
+
+                      {/* Combo/Signature Symbol (Large, Top) - Show only if card has symbol */}
+                      <div className="text-center mb-2">
+                        {card.comboSymbol && (
+                          <>
+                            <span className={cn(
+                              "text-5xl drop-shadow-lg transition-all duration-300",
+                              isSignatureBothPresent ? "opacity-100 animate-pulse" : "opacity-30 grayscale"
+                            )}>
+                              {COMBO_SYMBOL_EMOJI[card.comboSymbol]}
+                            </span>
+                            {isSignatureBothPresent && (
+                              <div className="text-xs text-amber-300 font-bold mt-1 animate-pulse">⚡ Pronta!</div>
+                            )}
+                          </>
+                        )}
                       </div>
 
                       {/* Card Content */}
-                      <div className="flex flex-col h-24 justify-between">
-                        <div>
-                          <p className="text-xs font-bold text-white uppercase tracking-wide">{card.name}</p>
-                          <p className="text-xl font-black text-cyan-300 mt-1">{card.value}</p>
-                          <p className="text-[10px] text-slate-400">{card.type}</p>
+                      <div className="flex flex-col items-center text-center space-y-1">
+                        <p className="text-xs font-bold text-white uppercase tracking-wider">{card.name}</p>
+                        <div className="flex items-baseline gap-1">
+                          <p className="text-3xl font-black text-cyan-300">{card.value}</p>
+                          <p className="text-xs text-slate-400">{card.type}</p>
                         </div>
-
-                        {/* Combo Symbol */}
-                        <div className="flex items-center justify-start">
-                          <span className="text-2xl">{COMBO_SYMBOL_EMOJI[card.comboSymbol]}</span>
-                          {isCombo && <span className="ml-1 text-amber-400 text-xs font-bold">COMBO!</span>}
-                        </div>
+                        
+                        {/* Show Special badge ONLY for signature pair */}
+                        {isSignatureBothPresent && (
+                          <div className="mt-2 px-2 py-1 bg-amber-500/30 rounded-full shadow-[0_0_10px_rgba(251,191,36,0.6)] animate-pulse">
+                            <span className="text-amber-200 text-[10px] font-bold uppercase">⭐ Combo!</span>
+                          </div>
+                        )}
+                        
+                        {isSelected && (
+                          <div className="mt-2 px-2 py-1 bg-white/20 rounded-full">
+                            <span className="text-white text-[10px] font-bold uppercase">Selezionata</span>
+                          </div>
+                        )}
                       </div>
                     </button>
                   );

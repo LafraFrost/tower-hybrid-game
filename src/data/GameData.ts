@@ -112,14 +112,45 @@ export const GAME_DATA = {
   },
 
   BASE_CARDS: [
-    { id: 'card_1', name: "Colpo Rapido", paCost: 1, type: "Attack", comboSymbol: "Volt" as ComboSymbol, value: 3, description: "Attacco rapido che infligge 3 danni" },
-    { id: 'card_2', name: "Attacco Standard", paCost: 2, type: "Attack", comboSymbol: "Fire" as ComboSymbol, value: 5, description: "Attacco potenziato che infligge 5 danni" },
-    { id: 'card_3', name: "Preparazione", paCost: 1, type: "Defense", comboSymbol: "Shield" as ComboSymbol, value: 4, description: "Ottieni 4 punti scudo" },
-    { id: 'card_4', name: "Spinta Tattica", paCost: 1, type: "Movement", comboSymbol: "Link" as ComboSymbol, value: 2, description: "Movimento tattico avanzato" },
-    { id: 'card_5', name: "Curazione Leggera", paCost: 2, type: "Heal", comboSymbol: "Link" as ComboSymbol, value: 4, description: "Recupera 4 HP" },
-    { id: 'card_6', name: "Ricarica Mente", paCost: 1, type: "Utility", comboSymbol: "Volt" as ComboSymbol, value: 1, description: "Ricarica risorse mentali" },
-    { id: 'card_7', name: "Debolezza Esposta", paCost: 2, type: "Debuff", comboSymbol: "Fire" as ComboSymbol, value: 2, description: "Riduce la difesa nemica" },
-    { id: 'card_8', name: "Tregua Breve", paCost: 0, type: "Utility", comboSymbol: "Shield" as ComboSymbol, value: 0, description: "Momento di pausa tattica" },
+    // Hero Signature Cards (2 per hero with matching comboSymbol)
+    // Baluardo - Tank
+    { id: 'sig_baluardo_1', name: "Muro Vivente", paCost: 2, type: "Attack", comboSymbol: "Shield", value: 4, description: "Attacco difensivo del Baluardo" },
+    { id: 'sig_baluardo_2', name: "Fortezza Umana", paCost: 1, type: "Defense", comboSymbol: "Shield", value: 6, description: "Difesa impenetrabile" },
+    // Sentinella - Tank
+    { id: 'sig_sentinella_1', name: "Guardia Assoluta", paCost: 2, type: "Defense", comboSymbol: "Shield", value: 5, description: "Posizione difensiva della Sentinella" },
+    { id: 'sig_sentinella_2', name: "Controffensiva", paCost: 1, type: "Attack", comboSymbol: "Shield", value: 4, description: "Risposta letale" },
+    // Ombra - DPS
+    { id: 'sig_ombra_1', name: "Lama Oscura", paCost: 2, type: "Attack", comboSymbol: "Volt", value: 6, description: "Attacco fulmineo dell'Ombra" },
+    { id: 'sig_ombra_2', name: "Passo Fantasma", paCost: 1, type: "Attack", comboSymbol: "Volt", value: 4, description: "Colpo invisibile" },
+    // Assassina - DPS
+    { id: 'sig_assassina_1', name: "Veleno Letale", paCost: 2, type: "Attack", comboSymbol: "Volt", value: 5, description: "Tossina mortale dell'Assassina" },
+    { id: 'sig_assassina_2', name: "Stiletto Rapido", paCost: 1, type: "Attack", comboSymbol: "Volt", value: 5, description: "Colpo preciso e veloce" },
+    // Cronomante - Control
+    { id: 'sig_cronomante_1', name: "Distorsione Temporale", paCost: 2, type: "Utility", comboSymbol: "Link", value: 3, description: "Manipolazione del tempo del Cronomante" },
+    { id: 'sig_cronomante_2', name: "Eco Futuro", paCost: 1, type: "Utility", comboSymbol: "Link", value: 2, description: "Visione anticipata" },
+    // Elementalista - Control
+    { id: 'sig_elementalista_1', name: "Tempesta Elementale", paCost: 2, type: "Attack", comboSymbol: "Fire", value: 6, description: "Furia degli elementi" },
+    { id: 'sig_elementalista_2', name: "Catalizzatore", paCost: 1, type: "Utility", comboSymbol: "Fire", value: 3, description: "Amplifica la magia elementale" },
+    // Archivista - Support
+    { id: 'sig_archivista_1', name: "Tomo Sacro", paCost: 2, type: "Heal", comboSymbol: "Link", value: 5, description: "Saggezza curativa dell'Archivista" },
+    { id: 'sig_archivista_2', name: "Benedizione", paCost: 1, type: "Heal", comboSymbol: "Link", value: 4, description: "Grazia divina" },
+    // Mistica - Support
+    { id: 'sig_mistica_1', name: "Illusione Perfetta", paCost: 2, type: "Utility", comboSymbol: "Link", value: 4, description: "Inganno mistico della Mistica" },
+    { id: 'sig_mistica_2', name: "Velo Arcano", paCost: 1, type: "Defense", comboSymbol: "Link", value: 5, description: "Protezione illusoria" },
+    // Ingegnere - Specialist
+    { id: 'sig_ingegnere_1', name: "Torretta MK-II", paCost: 2, type: "Attack", comboSymbol: "Fire", value: 5, description: "Dispositivo d'attacco avanzato" },
+    { id: 'sig_ingegnere_2', name: "Kit Riparazione", paCost: 1, type: "Heal", comboSymbol: "Fire", value: 4, description: "Recupero tecnico" },
+    // Predatore - Specialist
+    { id: 'sig_predatore_1', name: "Trappola Letale", paCost: 2, type: "Attack", comboSymbol: "Volt", value: 5, description: "Caccia perfetta del Predatore" },
+    { id: 'sig_predatore_2', name: "Istinto Selvaggio", paCost: 1, type: "Attack", comboSymbol: "Volt", value: 4, description: "Ferocia primordiale" },
+    
+    // Common Cards (no comboSymbol)
+    { id: 'card_atk_base', name: "Attacco Base", paCost: 1, type: "Attack", value: 3, description: "Attacco standard" },
+    { id: 'card_def_base', name: "Difesa Base", paCost: 1, type: "Defense", value: 3, description: "Difesa standard" },
+    { id: 'card_heal_base', name: "Cura Base", paCost: 2, type: "Heal", value: 4, description: "Recupero base" },
+    { id: 'card_util_base', name: "Utilità Base", paCost: 1, type: "Utility", value: 1, description: "Azione tattica" },
+    { id: 'card_move_base', name: "Movimento Base", paCost: 1, type: "Movement", value: 2, description: "Spostamento tattico" },
+    { id: 'card_debuff_base', name: "Indebolimento", paCost: 2, type: "Debuff", value: 2, description: "Riduce difesa nemica" },
   ],
 
   CLASS_COLORS: {
@@ -153,7 +184,7 @@ export const HERO_PROFILES: Record<HeroName, HeroProfile> = {
     hp: 15,
     def: 1,
     resourceMax: 5,
-    initialDeck: ['card_3', 'card_3', 'card_3', 'card_2', 'card_2', 'card_2', 'card_5', 'card_5'],
+    initialDeck: ['sig_baluardo_1', 'sig_baluardo_2', 'card_atk_base', 'card_atk_base', 'card_def_base', 'card_def_base', 'card_heal_base', 'card_util_base'],
   },
   Sentinella: {
     id: 'sentinella',
@@ -162,7 +193,7 @@ export const HERO_PROFILES: Record<HeroName, HeroProfile> = {
     hp: 14,
     def: 2,
     resourceMax: 4,
-    initialDeck: ['card_3', 'card_3', 'card_3', 'card_2', 'card_2', 'card_2', 'card_5', 'card_5'],
+    initialDeck: ['sig_sentinella_1', 'sig_sentinella_2', 'card_atk_base', 'card_atk_base', 'card_def_base', 'card_def_base', 'card_heal_base', 'card_util_base'],
   },
   Ombra: {
     id: 'ombra',
@@ -171,7 +202,7 @@ export const HERO_PROFILES: Record<HeroName, HeroProfile> = {
     hp: 12,
     def: 0,
     resourceMax: 4,
-    initialDeck: ['card_1', 'card_1', 'card_2', 'card_2', 'card_6', 'card_8', 'card_3', 'card_3'],
+    initialDeck: ['sig_ombra_1', 'sig_ombra_2', 'card_atk_base', 'card_atk_base', 'card_def_base', 'card_move_base', 'card_util_base', 'card_debuff_base'],
   },
   Assassina: {
     id: 'assassina',
@@ -180,7 +211,7 @@ export const HERO_PROFILES: Record<HeroName, HeroProfile> = {
     hp: 11,
     def: 0,
     resourceMax: 5,
-    initialDeck: ['card_1', 'card_1', 'card_2', 'card_2', 'card_6', 'card_8', 'card_3', 'card_3'],
+    initialDeck: ['sig_assassina_1', 'sig_assassina_2', 'card_atk_base', 'card_atk_base', 'card_def_base', 'card_move_base', 'card_util_base', 'card_debuff_base'],
   },
   Cronomante: {
     id: 'cronomante',
@@ -189,7 +220,7 @@ export const HERO_PROFILES: Record<HeroName, HeroProfile> = {
     hp: 10,
     def: 0,
     resourceMax: 6,
-    initialDeck: ['card_6', 'card_6', 'card_5', 'card_8', 'card_3', 'card_3', 'card_3', 'card_1'],
+    initialDeck: ['sig_cronomante_1', 'sig_cronomante_2', 'card_atk_base', 'card_def_base', 'card_heal_base', 'card_util_base', 'card_move_base', 'card_debuff_base'],
   },
   Elementalista: {
     id: 'elementalista',
@@ -198,7 +229,7 @@ export const HERO_PROFILES: Record<HeroName, HeroProfile> = {
     hp: 10,
     def: 0,
     resourceMax: 5,
-    initialDeck: ['card_6', 'card_6', 'card_5', 'card_8', 'card_3', 'card_3', 'card_3', 'card_1'],
+    initialDeck: ['sig_elementalista_1', 'sig_elementalista_2', 'card_atk_base', 'card_def_base', 'card_heal_base', 'card_util_base', 'card_move_base', 'card_debuff_base'],
   },
   Archivista: {
     id: 'archivista',
@@ -207,7 +238,7 @@ export const HERO_PROFILES: Record<HeroName, HeroProfile> = {
     hp: 11,
     def: 0,
     resourceMax: 4,
-    initialDeck: ['card_6', 'card_5', 'card_5', 'card_8', 'card_3', 'card_3', 'card_3', 'card_1'],
+    initialDeck: ['sig_archivista_1', 'sig_archivista_2', 'card_atk_base', 'card_def_base', 'card_heal_base', 'card_heal_base', 'card_util_base', 'card_move_base'],
   },
   Mistica: {
     id: 'mistica',
@@ -216,7 +247,7 @@ export const HERO_PROFILES: Record<HeroName, HeroProfile> = {
     hp: 10,
     def: 0,
     resourceMax: 4,
-    initialDeck: ['card_6', 'card_5', 'card_5', 'card_8', 'card_3', 'card_3', 'card_3', 'card_1'],
+    initialDeck: ['sig_mistica_1', 'sig_mistica_2', 'card_atk_base', 'card_def_base', 'card_heal_base', 'card_heal_base', 'card_util_base', 'card_move_base'],
   },
   Ingegnere: {
     id: 'ingegnere',
@@ -225,7 +256,7 @@ export const HERO_PROFILES: Record<HeroName, HeroProfile> = {
     hp: 13,
     def: 1,
     resourceMax: 5,
-    initialDeck: ['card_6', 'card_6', 'card_2', 'card_2', 'card_3', 'card_3', 'card_5', 'card_5'],
+    initialDeck: ['sig_ingegnere_1', 'sig_ingegnere_2', 'card_atk_base', 'card_def_base', 'card_heal_base', 'card_util_base', 'card_move_base', 'card_debuff_base'],
   },
   Predatore: {
     id: 'predatore',
@@ -234,7 +265,7 @@ export const HERO_PROFILES: Record<HeroName, HeroProfile> = {
     hp: 14,
     def: 0,
     resourceMax: 5,
-    initialDeck: ['card_6', 'card_6', 'card_2', 'card_2', 'card_3', 'card_3', 'card_5', 'card_5'],
+    initialDeck: ['sig_predatore_1', 'sig_predatore_2', 'card_atk_base', 'card_def_base', 'card_heal_base', 'card_util_base', 'card_move_base', 'card_debuff_base'],
   },
 };
 
@@ -259,7 +290,7 @@ export interface GameCard {
   name: string;
   paCost: number;
   type: CardType;
-  comboSymbol: ComboSymbol;
+  comboSymbol?: ComboSymbol;
   value?: number;
   description: string;
 }
@@ -303,7 +334,30 @@ export interface ILocalPlayerState {
 
 export type GameMode = 'SOLO' | 'TABLETOP';
 
-export function getHeroData(heroName: HeroName, mode: GameMode) {
+// Hero Signature Card Mapping: Each hero has exactly 2 signature cards for their special combo
+export const HERO_SIGNATURE_CARDS: Record<HeroName, [string, string]> = {
+  Baluardo: ['sig_baluardo_1', 'sig_baluardo_2'],
+  Sentinella: ['sig_sentinella_1', 'sig_sentinella_2'],
+  Ombra: ['sig_ombra_1', 'sig_ombra_2'],
+  Assassina: ['sig_assassina_1', 'sig_assassina_2'],
+  Cronomante: ['sig_cronomante_1', 'sig_cronomante_2'],
+  Elementalista: ['sig_elementalista_1', 'sig_elementalista_2'],
+  Archivista: ['sig_archivista_1', 'sig_archivista_2'],
+  Mistica: ['sig_mistica_1', 'sig_mistica_2'],
+  Ingegnere: ['sig_ingegnere_1', 'sig_ingegnere_2'],
+  Predatore: ['sig_predatore_1', 'sig_predatore_2'],
+};
+
+export function isSignatureCombo(heroName: HeroName, cardId1: string, cardId2: string): boolean {
+  const [sig1, sig2] = HERO_SIGNATURE_CARDS[heroName];
+  return (cardId1 === sig1 && cardId2 === sig2) || (cardId1 === sig2 && cardId2 === sig1);
+}
+
+export function getHeroSignatureSymbol(heroName: HeroName): ComboSymbol {
+  const [sigCardId] = HERO_SIGNATURE_CARDS[heroName];
+  const card = CARD_DATA[sigCardId];
+  return card?.comboSymbol || 'Fire';
+}
   if (mode === 'SOLO') {
     return HERO_PROFILES[heroName];
   }
