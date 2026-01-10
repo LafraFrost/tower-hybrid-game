@@ -79,6 +79,9 @@ const cardDeck: Card[] = [
   { id: "heal2", name: "Medikit", desc: "Cura 3", kind: "heal" },
 ];
 
+// Game constants
+const MAX_HAND_SIZE = 6; // Maximum cards in hand (prevents overflow)
+
 // Helper functions for deck system
 const shuffleDeck = (deck: string[]): string[] => {
   const shuffled = [...deck];
@@ -112,15 +115,18 @@ const reshuffle = (discardPile: string[]): { newDeck: string[], shouldLog: boole
  * @param deck - Current deck (card IDs)
  * @param count - Number of cards to draw
  * @param discardPile - Current discard pile (card IDs)
- * @returns Object with drawn cards, remaining deck, new discard pile, and reshuffle flag
+ * @param currentHandSize - Current number of cards in hand (for MAX_HAND_SIZE check)
+ * @returns Object with drawn cards, remaining deck, new discard pile, reshuffle flag, and overflow cards
  * 
  * Behavior:
  * - If deck has enough cards: draw normally
  * - If deck is empty: automatically reshuffle discard pile using Fisher-Yates
+ * - If hand is full (MAX_HAND_SIZE): excess cards go directly to discard pile
  * - Each drawn card gets unique ID to prevent React rendering confusion
  */
-const drawCards = (deck: string[], count: number, discardPile: string[] = []): { drawn: GameCard[], remaining: string[], newDiscard: string[], reshuffled: boolean } => {
+const drawCards = (deck: string[], count: number, discardPile: string[] = [], currentHandSize: number = 0): { drawn: GameCard[], remaining: string[], newDiscard: string[], reshuffled: boolean, overflowCount: number } => {
   const drawn: GameCard[] = [];
+  const overflow: string[] = []; // Cards that exceed hand limit
   let remaining = [...deck];
   let currentDiscard = [...discardPile];
   let reshuffled = false;
@@ -145,21 +151,33 @@ const drawCards = (deck: string[], count: number, discardPile: string[] = []): {
       const cardId = remaining.shift()!;
       const card = CARD_DATA[cardId];
       if (card) {
-        // Add unique ID to avoid React confusion with already played cards
-        const uniqueCard = { ...card, uniqueId: cardId + '_' + Math.random().toString(36).substring(2, 9) };
-        drawn.push(uniqueCard as GameCard);
+        // Check hand size limit
+        if (currentHandSize + drawn.length >= MAX_HAND_SIZE) {
+          // Hand is full, card goes directly to discard pile
+          overflow.push(cardId);
+          currentDiscard.push(cardId);
+        } else {
+          // Add unique ID to avoid React confusion with already played cards
+          const uniqueCard = { ...card, uniqueId: cardId + '_' + Math.random().toString(36).substring(2, 9) };
+          drawn.push(uniqueCard as GameCard);
+        }
       }
     }
   }
   
-  return { drawn, remaining, newDiscard: currentDiscard, reshuffled };
+  return { drawn, remaining, newDiscard: currentDiscard, reshuffled, overflowCount: overflow.length };
 };
 
-// Draw single card with auto-reshuffle from discard pile
-const drawCard = (state: BattleState): { card: GameCard | null, newState: BattleState, reshuffled: boolean } => {
+// Draw single card with auto-reshuffle from discard pile and hand limit check
+const drawCard = (state: BattleState): { card: GameCard | null, newState: BattleState, reshuffled: boolean, handFull: boolean } => {
   let currentDeck = [...state.deck];
   let currentDiscard = [...state.discardPile];
   let reshuffled = false;
+
+  // Check if hand is already full
+  if (state.hand.length >= MAX_HAND_SIZE) {
+    return { card: null, newState: state, reshuffled: false, handFull: true };
+  }
 
   // If deck is empty, reshuffle discard pile into deck
   if (currentDeck.length === 0 && currentDiscard.length > 0) {
@@ -175,6 +193,24 @@ const drawCard = (state: BattleState): { card: GameCard | null, newState: Battle
   if (currentDeck.length > 0) {
     const cardId = currentDeck.shift()!;
     const card = CARD_DATA[cardId];
+    
+    // Check if adding this card would exceed hand limit
+    if (state.hand.length >= MAX_HAND_SIZE) {
+      // Hand is full, card goes directly to discard pile
+      currentDiscard.push(cardId);
+      return {
+        card: null,
+        newState: {
+          ...state,
+          deck: currentDeck,
+          discardPile: currentDiscard,
+          feedbackMessage: "⚠️ Mano piena! Carta scartata automaticamente."
+        },
+        reshuffled,
+        handFull: true
+      };
+    }
+    
     // Add unique ID to avoid React confusion
     const uniqueCard = card ? { ...card, uniqueId: cardId + '_' + Math.random().toString(36).substring(2, 9) } : null;
     return {
@@ -185,11 +221,12 @@ const drawCard = (state: BattleState): { card: GameCard | null, newState: Battle
         discardPile: currentDiscard,
         feedbackMessage: reshuffled ? "♻️ Mazzo rimescolato!" : state.feedbackMessage
       },
-      reshuffled
+      reshuffled,
+      handFull: false
     };
   }
 
-  return { card: null, newState: state, reshuffled: false };
+  return { card: null, newState: state, reshuffled: false, handFull: false };
 };
 
 const detectCombos = (hand: GameCard[]): Map<string, number> => {
@@ -380,7 +417,7 @@ const TacticalScreen = () => {
   const startBattle = (node: Node) => {
     const heroProfile = HERO_PROFILES[selectedHero as HeroName];
     const initialDeck = heroProfile ? shuffleDeck([...heroProfile.initialDeck]) : [];
-    const { drawn, remaining, newDiscard, reshuffled } = drawCards(initialDeck, 4, []);
+    const { drawn, remaining, newDiscard, reshuffled, overflowCount } = drawCards(initialDeck, 4, [], 0);
     
     const base: BattleState = {
       enemyHp: node.type === "Boss" ? 26 : 14,
@@ -393,7 +430,9 @@ const TacticalScreen = () => {
       hand: drawn,
       deck: remaining,
       discardPile: newDiscard,
-      feedbackMessage: reshuffled ? "♻️ Mazzo rimescolato! Hai pescato 4 carte" : "Hai pescato 4 carte",
+      feedbackMessage: overflowCount > 0 
+        ? `⚠️ Mano piena! ${overflowCount} carte scartate.`
+        : reshuffled ? "♻️ Mazzo rimescolato! Hai pescato 4 carte" : "Hai pescato 4 carte",
     };
     const rolled = rollBonus(base);
     setBattleNode(node);
@@ -468,11 +507,13 @@ const TacticalScreen = () => {
     };
     
     let anyReshuffled = false;
+    let handFullCount = 0;
 
     // Draw same number of cards as discarded
     for (let i = 0; i < cardsToDiscard.length; i++) {
       const result = drawCard(updatedState);
       if (result.reshuffled) anyReshuffled = true;
+      if (result.handFull) handFullCount++;
       if (result.card) {
         updatedState = {
           ...result.newState,
@@ -486,8 +527,11 @@ const TacticalScreen = () => {
     if (anyReshuffled) {
       appendLog("♻️ MAZZO RIMESCOLATO dalla pila degli scarti!");
     }
+    if (handFullCount > 0) {
+      appendLog(`⚠️ Mano piena! ${handFullCount} carte scartate automaticamente.`);
+    }
 
-    appendLog(`🔄 Riciclate ${cardsToDiscard.length} carte, pescate ${cardsToDiscard.length} nuove`);
+    appendLog(`🔄 Riciclate ${cardsToDiscard.length} carte, pescate ${cardsToDiscard.length - handFullCount} nuove`);
     updatedState.feedbackMessage = `🔄 ${cardsToDiscard.length} carte riciclate`;
     setBattle(updatedState);
   };
@@ -580,11 +624,15 @@ const TacticalScreen = () => {
 
     // Step 2-3: Pesca nuova mano (drawCards gestisce auto-reshuffle con Fisher-Yates)
     // Se deck < 4 carte, drawCards rimescola automaticamente gli scarti nel mazzo
-    const { drawn, remaining, newDiscard, reshuffled } = drawCards(battle.deck, 4, updatedDiscardPile);
+    // Pass 0 for currentHandSize since we just discarded all cards
+    const { drawn, remaining, newDiscard, reshuffled, overflowCount } = drawCards(battle.deck, 4, updatedDiscardPile, 0);
     
     // Step 4: Log del rimescolamento (se avvenuto)
     if (reshuffled) {
       appendLog("♻️ Mazzo rimescolato dalla pila degli scarti!");
+    }
+    if (overflowCount > 0) {
+      appendLog(`⚠️ ${overflowCount} carte scartate per limite mano (max ${MAX_HAND_SIZE})`);
     }
 
     // Step 5: Aggiorna tutti gli stati in un colpo solo
@@ -599,7 +647,9 @@ const TacticalScreen = () => {
       hand: drawn,
       deck: remaining,
       discardPile: newDiscard,
-      feedbackMessage: drawn.length < 4 ? `⚠️ Pescate solo ${drawn.length} carte (mazzo esaurito)` : "Hai pescato 4 carte",
+      feedbackMessage: overflowCount > 0 
+        ? `⚠️ Pescate ${drawn.length} carte (${overflowCount} scartate per limite)` 
+        : drawn.length < 4 ? `⚠️ Pescate solo ${drawn.length} carte (mazzo esaurito)` : "Hai pescato 4 carte",
     };
     const rolled = rollBonus(refreshed);
     setBattle(rolled);
