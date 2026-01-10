@@ -623,7 +623,18 @@ const TacticalScreen = () => {
               </span>
             )}
             <button
-              onClick={() => setLocation('/home')}
+              onClick={() => {
+                // Reset dungeon progress when returning home
+                localStorage.removeItem(STORAGE_KEY);
+                setCurrentNode(1);
+                setVisited(new Set([1]));
+                setLogs(["Partenza: scegli un ramo."]);
+                setBattleNode(null);
+                setBattle(null);
+                setBossDefeated(false);
+                setSelectedCard(null);
+                setLocation('/home');
+              }}
               style={{
                 padding: '8px 16px',
                 backgroundColor: '#1e40af',
