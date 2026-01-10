@@ -39,6 +39,17 @@ const normalizeBuildingType = (loc: any) => {
   return undefined;
 };
 
+// Sprite selector: returns ruin sprite if building is ruined, normal sprite otherwise (or hammer if not built)
+const getBuildingSprite = (loc: any, ruinedBuildings: string[]) => {
+  const bt = normalizeBuildingType(loc);
+  const isBuilt = Boolean(loc.is_built);
+  if (!isBuilt) return hammerIcon;
+  if (bt && ruinedBuildings.includes(loc.name)) {
+    return `/assets/buildings/${bt}_ruin.png`;
+  }
+  return bt ? (buildingAssets[bt] || '/assets/magazzino.png') : '/assets/magazzino.png';
+};
+
 const ResourceBar = ({ resources }: { resources: any }) => (
   <div style={{
     position: 'absolute',
@@ -131,6 +142,12 @@ const HomeDashboard = () => {
   const [isGoblinAttackActive, setIsGoblinAttackActive] = useState(false);
   const [goblinAttackMessage, setGoblinAttackMessage] = useState('');
   const [showGoblinAlert, setShowGoblinAlert] = useState(false);
+  const [defendedBuildings, setDefendedBuildings] = useState<string[]>([]);
+  const [ruinedBuildings, setRuinedBuildings] = useState<string[]>([]);
+  const [showCampPopup, setShowCampPopup] = useState(false);
+  const [showRepairPopup, setShowRepairPopup] = useState(false);
+  const [repairTarget, setRepairTarget] = useState<any>(null);
+  const [repairCost, setRepairCost] = useState<{ wood: number; stone: number; gold: number }>({ wood: 0, stone: 0, gold: 0 });
   const mapRef = useRef<HTMLDivElement>(null);
 
   const loadLocations = React.useCallback(async () => {
@@ -350,6 +367,13 @@ const HomeDashboard = () => {
       }
     };
     loadFromSupabase();
+    // Load defense outcomes from localStorage
+    try {
+      const def = localStorage.getItem('defended_buildings');
+      const ruin = localStorage.getItem('ruined_buildings');
+      setDefendedBuildings(def ? JSON.parse(def) : []);
+      setRuinedBuildings(ruin ? JSON.parse(ruin) : []);
+    } catch {}
   }, []);
 
   useEffect(() => {
@@ -391,6 +415,21 @@ const HomeDashboard = () => {
       setShowGoblinAlert(true);
     }
   }, [isGoblinAttackActive]);
+
+  // Hide red alert when no buildings under attack remain, and show camp triangle if mine not unlocked
+  useEffect(() => {
+    const anyUnderAttack = locations.some((loc) => {
+      const bt = normalizeBuildingType(loc);
+      if (!bt) return false;
+      const built = Boolean(loc.is_built);
+      const defended = defendedBuildings.includes(loc.name);
+      const ruined = ruinedBuildings.includes(loc.name);
+      return isGoblinAttackActive && built && !defended && !ruined;
+    });
+    if (!anyUnderAttack) {
+      setShowGoblinAlert(false);
+    }
+  }, [locations, defendedBuildings, ruinedBuildings, isGoblinAttackActive]);
 
   const handleDefend = () => {
     setShowGoblinAlert(false);
@@ -478,6 +517,74 @@ const HomeDashboard = () => {
       console.error('Errore build:', err);
       alert('Errore durante la costruzione');
     }
+  };
+
+  // Open repair popup with 50% original cost
+  const openRepairPopup = (loc: any) => {
+    const requiredWood = loc.requiredWood ?? loc.required_wood ?? 0;
+    const requiredStone = loc.requiredStone ?? loc.required_stone ?? 0;
+    const requiredGold = loc.requiredGold ?? loc.required_gold ?? 0;
+
+    const cost = {
+      wood: Math.ceil(requiredWood * 0.5),
+      stone: Math.ceil(requiredStone * 0.5),
+      gold: Math.ceil(requiredGold * 0.5),
+    };
+    setRepairTarget(loc);
+    setRepairCost(cost);
+    setShowRepairPopup(true);
+  };
+
+  const confirmRepair = async () => {
+    if (!repairTarget) return;
+    const { wood, stone, gold } = repairCost;
+
+    // Check local resources
+    const hasEnough = (resources.wood ?? 0) >= wood && (resources.stone ?? 0) >= stone && (resources.gold ?? 0) >= gold;
+    if (!hasEnough) {
+      alert(`Risorse insufficienti per riparare ${repairTarget.name}. Servono: ${wood} Legno, ${stone} Pietra, ${gold} Oro.`);
+      return;
+    }
+
+    // Deduct locally
+    setResources((prev: any) => ({
+      wood: Math.max(0, (prev.wood ?? 0) - wood),
+      stone: Math.max(0, (prev.stone ?? 0) - stone),
+      gold: Math.max(0, (prev.gold ?? 0) - gold),
+    }));
+
+    // Try to update in Supabase
+    try {
+      const { data, error } = await supabase
+        .from('user_resources')
+        .select('wood, stone, gold')
+        .eq('user_id', 1)
+        .maybeSingle();
+      if (!error && data) {
+        const newWood = Math.max(0, (data.wood ?? 0) - wood);
+        const newStone = Math.max(0, (data.stone ?? 0) - stone);
+        const newGold = Math.max(0, (data.gold ?? 0) - gold);
+        await supabase
+          .from('user_resources')
+          .update({ wood: newWood, stone: newStone, gold: newGold })
+          .eq('user_id', 1);
+      }
+    } catch (err) {
+      console.warn('Supabase repair update failed (using local only):', err);
+    }
+
+    // Remove from ruined_buildings
+    try {
+      const ruin = localStorage.getItem('ruined_buildings');
+      const list: string[] = ruin ? JSON.parse(ruin) : [];
+      const next = list.filter((name) => name !== repairTarget.name);
+      localStorage.setItem('ruined_buildings', JSON.stringify(next));
+      setRuinedBuildings(next);
+    } catch {}
+
+    alert(`${repairTarget.name} riparato con successo! Bonus passivi riattivati.`);
+    setShowRepairPopup(false);
+    setRepairTarget(null);
   };
 
   const handleBuildClick = (loc: any) => {
@@ -706,8 +813,74 @@ const HomeDashboard = () => {
               pointerEvents: isGoblinAttackActive && loc.buildingType !== 'defense' && loc.is_built ? 'none' : 'auto',
             }}
           >
+            {/* Fire Swords Overlay when under attack */}
+            {(() => {
+              const defended = defendedBuildings.includes(loc.name);
+              const ruined = ruinedBuildings.includes(loc.name);
+              const showSwords = isGoblinAttackActive && loc.is_built && !defended && !ruined && loc.buildingType !== 'mine';
+              if (!showSwords) return null;
+              return (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    // Navigate to tactical with building context
+                    setSelectedLocation(null);
+                    window.location.href = `/solo?targetBuilding=${encodeURIComponent(loc.name)}&return=village`;
+                  }}
+                  style={{
+                    position: 'absolute',
+                    top: '-40px',
+                    left: '50%',
+                    transform: 'translateX(-50%)',
+                    backgroundColor: 'rgba(255,69,0,0.85)',
+                    border: '2px solid #ffae42',
+                    color: 'white',
+                    padding: '6px 10px',
+                    borderRadius: '999px',
+                    cursor: 'pointer',
+                    boxShadow: '0 0 20px rgba(255,140,0,0.8)',
+                    animation: 'pulse 1s infinite',
+                    zIndex: 2002,
+                  }}
+                  title={`Difendi ${loc.name}`}
+                >
+                  ⚔️🔥 Difendi
+                </button>
+              );
+            })()}
+            {/* Blue Hammer Overlay for ruined buildings (repair) */}
+            {(() => {
+              const ruined = ruinedBuildings.includes(loc.name);
+              if (!ruined) return null;
+              return (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    openRepairPopup(loc);
+                  }}
+                  style={{
+                    position: 'absolute',
+                    top: '-40px',
+                    left: '50%',
+                    transform: 'translateX(-50%)',
+                    backgroundColor: 'rgba(59,130,246,0.9)',
+                    border: '2px solid #60a5fa',
+                    color: 'white',
+                    padding: '6px 10px',
+                    borderRadius: '999px',
+                    cursor: 'pointer',
+                    boxShadow: '0 0 20px rgba(59,130,246,0.8)',
+                    animation: 'pulse 1s infinite',
+                    zIndex: 2002,
+                  }}
+                  title={`Ripara ${loc.name}`}
+                >
+                  <span style={{ marginRight: '6px' }}>🔧</span> Ripara
+                </button>
+              );
+            })()}
             <img
-              src={loc.is_built ? buildingAssets[loc.buildingType] || '/assets/magazzino.png' : hammerIcon}
+              src={getBuildingSprite(loc, ruinedBuildings)}
               alt={loc.name}
               style={{
                 // Dimensionamento specifico per tipologia: magazzino +30%, miniera -50%
@@ -797,6 +970,191 @@ const HomeDashboard = () => {
       </div>
     </div>
   );
+      {/* Yellow Triangle Camp overlay above Mine when all attacks handled and mine not unlocked */}
+      {(() => {
+        if (isMineUnlocked) return null;
+        const mineLoc = locations.find((l) => normalizeBuildingType(l) === 'mine');
+        if (!mineLoc) return null;
+        const anyUnderAttack = locations.some((loc) => {
+          const defended = defendedBuildings.includes(loc.name);
+          const ruined = ruinedBuildings.includes(loc.name);
+          return isGoblinAttackActive && loc.is_built && !defended && !ruined;
+        });
+        if (anyUnderAttack) return null;
+        return (
+          <div
+            style={{
+              position: 'absolute',
+              top: `${mineLoc.coordinateY}%`,
+              left: `${mineLoc.coordinateX}%`,
+              transform: 'translate(-50%, -120%)',
+              zIndex: 3000,
+            }}
+          >
+            <button
+              onClick={() => setShowCampPopup(true)}
+              style={{
+                backgroundColor: 'rgba(234,179,8,0.9)',
+                border: '2px solid #d97706',
+                color: '#1f2937',
+                padding: '8px 12px',
+                borderRadius: '10px',
+                fontWeight: '800',
+                boxShadow: '0 0 20px rgba(234,179,8,0.8)',
+                animation: 'pulse 1.2s infinite',
+              }}
+            >
+              ⚠️ Accampamento Goblin
+            </button>
+          </div>
+        );
+      })()}
+      {showCampPopup && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            backgroundColor: 'rgba(0,0,0,0.7)',
+            backdropFilter: 'blur(6px)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 4000,
+          }}
+          onClick={() => setShowCampPopup(false)}
+        >
+          <div
+            style={{
+              background: 'linear-gradient(135deg, #0f172a, #1f2937)',
+              border: '3px solid #f59e0b',
+              borderRadius: '16px',
+              padding: '24px',
+              width: '520px',
+              color: 'white',
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 style={{ fontSize: '22px', fontWeight: 900, marginBottom: '8px' }}>Abbiamo scacciato gli assalitori!</h3>
+            <p style={{ color: '#fef3c7', marginBottom: '16px' }}>
+              Ora distruggiamo il loro covo per liberare definitivamente l'area.
+            </p>
+            <div style={{ display: 'flex', gap: '12px' }}>
+              <button
+                onClick={() => {
+                  setShowCampPopup(false);
+                  window.location.href = '/solo';
+                }}
+                style={{
+                  flex: 1,
+                  backgroundColor: '#ef4444',
+                  color: 'white',
+                  border: '2px solid #b91c1c',
+                  padding: '10px 14px',
+                  borderRadius: '10px',
+                  fontWeight: 800,
+                  cursor: 'pointer',
+                }}
+              >
+                ATTACCA IL COVO
+              </button>
+              <button
+                onClick={() => setShowCampPopup(false)}
+                style={{
+                  flex: 1,
+                  backgroundColor: '#374151',
+                  color: 'white',
+                  border: '2px solid #6b7280',
+                  padding: '10px 14px',
+                  borderRadius: '10px',
+                  fontWeight: 800,
+                  cursor: 'pointer',
+                }}
+              >
+                ANNULLA
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Repair Popup */}
+      {showRepairPopup && repairTarget && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            backgroundColor: 'rgba(0,0,0,0.7)',
+            backdropFilter: 'blur(6px)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 4500,
+          }}
+          onClick={() => setShowRepairPopup(false)}
+        >
+          <div
+            style={{
+              background: 'linear-gradient(135deg, #0f172a, #1f2937)',
+              border: '3px solid #60a5fa',
+              borderRadius: '16px',
+              padding: '24px',
+              width: '520px',
+              color: 'white',
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 style={{ fontSize: '22px', fontWeight: 900, marginBottom: '8px' }}>
+              Vuoi riparare {repairTarget?.name}?
+            </h3>
+            <p style={{ color: '#c7d2fe', marginBottom: '16px' }}>
+              Costo di riparazione (50% dei materiali originali):
+            </p>
+            <div style={{ display: 'flex', gap: '12px', marginBottom: '16px' }}>
+              <div style={{ flex: 1, backgroundColor: 'rgba(30,58,138,0.5)', padding: '10px', borderRadius: '10px', border: '2px solid #93c5fd' }}>
+                🪵 Legno: <strong>{repairCost.wood}</strong>
+              </div>
+              <div style={{ flex: 1, backgroundColor: 'rgba(30,58,138,0.5)', padding: '10px', borderRadius: '10px', border: '2px solid #93c5fd' }}>
+                🪨 Pietra: <strong>{repairCost.stone}</strong>
+              </div>
+              <div style={{ flex: 1, backgroundColor: 'rgba(30,58,138,0.5)', padding: '10px', borderRadius: '10px', border: '2px solid #93c5fd' }}>
+                💰 Oro: <strong>{repairCost.gold}</strong>
+              </div>
+            </div>
+            <div style={{ display: 'flex', gap: '12px' }}>
+              <button
+                onClick={confirmRepair}
+                style={{
+                  flex: 1,
+                  backgroundColor: '#3b82f6',
+                  color: 'white',
+                  border: '2px solid #60a5fa',
+                  padding: '10px 14px',
+                  borderRadius: '10px',
+                  fontWeight: 800,
+                  cursor: 'pointer',
+                }}
+              >
+                CONFERMA RIPARAZIONE
+              </button>
+              <button
+                onClick={() => setShowRepairPopup(false)}
+                style={{
+                  flex: 1,
+                  backgroundColor: '#374151',
+                  color: 'white',
+                  border: '2px solid #6b7280',
+                  padding: '10px 14px',
+                  borderRadius: '10px',
+                  fontWeight: 800,
+                  cursor: 'pointer',
+                }}
+              >
+                ANNULLA
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 };
 
 export default HomeDashboard;

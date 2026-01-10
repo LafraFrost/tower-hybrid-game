@@ -286,6 +286,7 @@ const TacticalScreen = () => {
   const [showBossVictory, setShowBossVictory] = useState(false);
   const [showRewardPopup, setShowRewardPopup] = useState(false);
   const [bossRewards, setBossRewards] = useState({ stone: 10, gold: 5 });
+  const [targetBuilding, setTargetBuilding] = useState<string | null>(null);
 
   // Load progress on mount (localStorage first, then sync with DB when selectedHero is ready)
   useEffect(() => {
@@ -337,6 +338,25 @@ const TacticalScreen = () => {
       }
     })();
   }, [selectedHero]);
+
+  // Direct combat trigger from Village: read targetBuilding from URL and auto-start a combat
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const tb = params.get('targetBuilding');
+    if (tb) {
+      setTargetBuilding(tb);
+      // Start a synthetic combat node for building defense
+      const syntheticNode: Node = {
+        id: 999,
+        type: "Combat",
+        label: `Difesa: ${tb}`,
+        x: 640,
+        y: 320,
+        connections: [],
+      };
+      startBattle(syntheticNode);
+    }
+  }, []);
 
   // Persist progress on change (both DB and local with consistency check)
   useEffect(() => {
@@ -628,6 +648,20 @@ const TacticalScreen = () => {
 
   const finishBattle = async (victory: boolean, node: Node) => {
     if (!victory) {
+      // If this was a direct building combat, mark building as ruined and return to Village
+      if (targetBuilding) {
+        try {
+          const raw = localStorage.getItem('ruined_buildings');
+          const list: string[] = raw ? JSON.parse(raw) : [];
+          if (!list.includes(targetBuilding)) list.push(targetBuilding);
+          localStorage.setItem('ruined_buildings', JSON.stringify(list));
+        } catch {}
+        appendLog(`Sconfitta nella difesa di ${targetBuilding}. Edificio in rovina.`);
+        setLocation('/village');
+        setBattleNode(null);
+        setBattle(null);
+        return;
+      }
       appendLog("Sconfitto. Riprova dal nodo corrente.");
       setBattleNode(null);
       setBattle(null);
@@ -660,6 +694,18 @@ const TacticalScreen = () => {
         await saveRewardsToDatabase(bossRewards.stone, bossRewards.gold);
         await updateSupabaseProgress();
       }, 2000);
+    }
+
+    // If this was a direct building combat victory, mark building as defended and return to Village
+    if (targetBuilding && node.id !== 22) {
+      try {
+        const raw = localStorage.getItem('defended_buildings');
+        const list: string[] = raw ? JSON.parse(raw) : [];
+        if (!list.includes(targetBuilding)) list.push(targetBuilding);
+        localStorage.setItem('defended_buildings', JSON.stringify(list));
+      } catch {}
+      appendLog(`Difesa riuscita: ${targetBuilding} salvata.`);
+      setLocation('/village');
     }
   };
 
