@@ -705,7 +705,7 @@ const HomeDashboard = () => {
     }
   };
 
-  const handleMiniCombatVictory = (buildingName: string) => {
+  const handleMiniCombatVictory = async (buildingName: string) => {
     // Mark building as defended - persists state locally WITHOUT page reload
     const updatedDefended = [...defendedBuildings, buildingName];
     setDefendedBuildings(updatedDefended);
@@ -713,19 +713,37 @@ const HomeDashboard = () => {
       localStorage.setItem('defended_buildings', JSON.stringify(updatedDefended));
     } catch {}
     
-    // Update Supabase game_locations to clear under_attack flag
+    // Update Supabase game_locations to clear under_attack flag AND reset is_ruined
     const buildingLoc = locations.find((l) => l.name === buildingName);
     if (buildingLoc) {
-      supabase
-        .from('game_locations')
-        .update({ is_under_attack: false })
-        .eq('id', buildingLoc.id)
-        .then(() => console.log(`✅ Supabase updated for ${buildingName}`))
-        .catch(err => console.warn(`⚠️ Supabase update failed for ${buildingName}:`, err));
+      try {
+        const { error } = await supabase
+          .from('game_locations')
+          .update({ is_under_attack: false, is_ruined: false })
+          .eq('id', buildingLoc.id);
+        
+        if (error) {
+          console.warn(`⚠️ Supabase update failed for ${buildingName}:`, error);
+        } else {
+          console.log(`✅ Supabase updated for ${buildingName}`);
+          // Refresh locations to reflect changes immediately
+          const { data } = await supabase.from('game_locations').select('*').order('id');
+          if (data) {
+            setLocations(data.map((loc: any) => ({
+              ...loc,
+              is_built: Boolean(loc.is_built),
+              buildingType: normalizeBuildingType(loc)
+            })));
+          }
+        }
+      } catch (err) {
+        console.warn(`⚠️ Supabase error for ${buildingName}:`, err);
+      }
     }
     
-    // Close mini combat overlay immediately
+    // Reset combat state and defending mode
     setActiveMiniCombat(null);
+    setIsDefending(false);
     
     // Show victory toast feedback
     showToast('success', `✅ ${buildingName} è stato difeso!`, { duration: 3000 });
@@ -733,7 +751,7 @@ const HomeDashboard = () => {
     console.log('🎉 Mini combat victory:', buildingName);
   };
 
-  const handleMiniCombatDefeat = (buildingName: string) => {
+  const handleMiniCombatDefeat = async (buildingName: string) => {
     // Mark building as ruined - persists state locally WITHOUT page reload
     const updatedRuined = [...ruinedBuildings, buildingName];
     setRuinedBuildings(updatedRuined);
@@ -744,16 +762,34 @@ const HomeDashboard = () => {
     // Update Supabase game_locations to mark as ruined
     const buildingLoc = locations.find((l) => l.name === buildingName);
     if (buildingLoc) {
-      supabase
-        .from('game_locations')
-        .update({ is_ruined: true, is_under_attack: false })
-        .eq('id', buildingLoc.id)
-        .then(() => console.log(`💀 Supabase updated for ${buildingName}`))
-        .catch(err => console.warn(`⚠️ Supabase update failed for ${buildingName}:`, err));
+      try {
+        const { error } = await supabase
+          .from('game_locations')
+          .update({ is_ruined: true, is_under_attack: false })
+          .eq('id', buildingLoc.id);
+        
+        if (error) {
+          console.warn(`⚠️ Supabase update failed for ${buildingName}:`, error);
+        } else {
+          console.log(`💀 Supabase updated for ${buildingName}`);
+          // Refresh locations to reflect changes immediately
+          const { data } = await supabase.from('game_locations').select('*').order('id');
+          if (data) {
+            setLocations(data.map((loc: any) => ({
+              ...loc,
+              is_built: Boolean(loc.is_built),
+              buildingType: normalizeBuildingType(loc)
+            })));
+          }
+        }
+      } catch (err) {
+        console.warn(`⚠️ Supabase error for ${buildingName}:`, err);
+      }
     }
     
-    // Close mini combat overlay immediately
+    // Reset combat state and defending mode
     setActiveMiniCombat(null);
+    setIsDefending(false);
     
     // Show defeat toast feedback
     showToast('error', `❌ ${buildingName} è stato distrutto!`, { duration: 3000 });

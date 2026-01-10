@@ -1167,7 +1167,7 @@ const TacticalScreen = ({
                 )}
               </div>
               <button
-                className="px-3 py-2 text-sm rounded-md bg-white/10 border border-white/20 hover:bg-white/20 transition-colors"
+                className="px-3 py-2 text-sm rounded-md bg-white/10 border border-white/20 hover:bg-white/20 transition-colors pointer-events-auto relative z-[100]"
                 onClick={() => {
                   setBattleNode(null);
                   setBattle(null);
@@ -1293,7 +1293,11 @@ const TacticalScreen = ({
 
             <div className="flex items-center justify-between">
               <p className="text-xs text-slate-400">Ogni carta costa 1 PA. A fine turno il nemico attacca.</p>
-              <button className="px-4 py-2 rounded-md font-semibold text-black" style={{ backgroundColor: getNodeColor(battleNode) }} onClick={endTurn}>
+              <button 
+                className="px-4 py-2 rounded-md font-semibold text-black pointer-events-auto relative z-[100] hover:opacity-90 transition-opacity" 
+                style={{ backgroundColor: getNodeColor(battleNode) }} 
+                onClick={endTurn}
+              >
                 Fine turno
               </button>
             </div>
