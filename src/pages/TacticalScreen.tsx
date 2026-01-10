@@ -102,6 +102,38 @@ const drawCards = (deck: string[], count: number): { drawn: GameCard[], remainin
   return { drawn, remaining };
 };
 
+// Draw single card with auto-reshuffle from discard pile
+const drawCard = (state: BattleState): { card: GameCard | null, newState: BattleState } => {
+  let currentDeck = [...state.deck];
+  let currentDiscard = [...state.discardPile];
+  let reshuffled = false;
+
+  // If deck is empty, reshuffle discard pile into deck
+  if (currentDeck.length === 0 && currentDiscard.length > 0) {
+    currentDeck = shuffleDeck(currentDiscard);
+    currentDiscard = [];
+    reshuffled = true;
+    appendLog("♻️ MAZZO RIMESCOLATO dalla pila degli scarti!");
+  }
+
+  // Draw one card
+  if (currentDeck.length > 0) {
+    const cardId = currentDeck.shift()!;
+    const card = CARD_DATA[cardId];
+    return {
+      card: card || null,
+      newState: {
+        ...state,
+        deck: currentDeck,
+        discardPile: currentDiscard,
+        feedbackMessage: reshuffled ? "♻️ Mazzo rimescolato!" : state.feedbackMessage
+      }
+    };
+  }
+
+  return { card: null, newState: state };
+};
+
 const detectCombos = (hand: GameCard[]): Map<string, number> => {
   const symbolCount = new Map<string, number>();
   hand.forEach(card => {
@@ -155,6 +187,8 @@ const TacticalScreen = () => {
   const [battle, setBattle] = useState<BattleState | null>(null);
   const [bossDefeated, setBossDefeated] = useState(false);
   const [selectedCard, setSelectedCard] = useState<GameCard | null>(null);
+  const [mulliganMode, setMulliganMode] = useState(false);
+  const [mulliganSelected, setMulliganSelected] = useState<GameCard[]>([]);
 
   // Load progress on mount (localStorage first, then sync with DB when selectedHero is ready)
   useEffect(() => {
@@ -362,6 +396,35 @@ const TacticalScreen = () => {
 
     next.feedbackMessage = "";
     setBattle(next);
+  };
+
+  const mulliganCards = (cardsToDiscard: GameCard[]) => {
+    if (!battle || cardsToDiscard.length === 0 || cardsToDiscard.length > 2) return;
+
+    // Remove selected cards from hand and add to discard pile
+    const newHand = battle.hand.filter(c => !cardsToDiscard.includes(c));
+    let updatedState: BattleState = {
+      ...battle,
+      hand: newHand,
+      discardPile: [...battle.discardPile, ...cardsToDiscard.map(c => c.id)]
+    };
+
+    // Draw same number of cards as discarded
+    for (let i = 0; i < cardsToDiscard.length; i++) {
+      const result = drawCard(updatedState);
+      if (result.card) {
+        updatedState = {
+          ...result.newState,
+          hand: [...result.newState.hand, result.card]
+        };
+      } else {
+        updatedState = result.newState;
+      }
+    }
+
+    appendLog(`🔄 Riciclate ${cardsToDiscard.length} carte, pescate ${cardsToDiscard.length} nuove`);
+    updatedState.feedbackMessage = `🔄 ${cardsToDiscard.length} carte riciclate`;
+    setBattle(updatedState);
   };
 
   const executeCombo = (card1: GameCard, card2: GameCard, isSignature: boolean) => {
@@ -848,11 +911,50 @@ const TacticalScreen = () => {
             </div>
 
             <div>
-              <h4 className="text-sm text-slate-200 font-semibold mb-3">Mano ({battle.hand.length} carte • Deck: {battle.deck.length})</h4>
+              <h4 className="text-sm text-slate-200 font-semibold mb-3 flex items-center justify-between">
+                <span>Mano ({battle.hand.length} carte • Deck: {battle.deck.length} • Scarti: {battle.discardPile.length})</span>
+                {!mulliganMode && (
+                  <button
+                    onClick={() => {
+                      setMulliganMode(true);
+                      setMulliganSelected([]);
+                    }}
+                    className="px-3 py-1 text-xs rounded-md bg-purple-600 hover:bg-purple-700 border border-purple-400 transition-colors"
+                    disabled={battle.hand.length === 0}
+                  >
+                    🔄 RICICLA (max 2)
+                  </button>
+                )}
+                {mulliganMode && (
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => {
+                        mulliganCards(mulliganSelected);
+                        setMulliganMode(false);
+                        setMulliganSelected([]);
+                      }}
+                      className="px-3 py-1 text-xs rounded-md bg-green-600 hover:bg-green-700 border border-green-400 transition-colors"
+                      disabled={mulliganSelected.length === 0}
+                    >
+                      ✔ CONFERMA ({mulliganSelected.length})
+                    </button>
+                    <button
+                      onClick={() => {
+                        setMulliganMode(false);
+                        setMulliganSelected([]);
+                      }}
+                      className="px-3 py-1 text-xs rounded-md bg-red-600 hover:bg-red-700 border border-red-400 transition-colors"
+                    >
+                      ✖ ANNULLA
+                    </button>
+                  </div>
+                )}
+              </h4>
               <div className="flex gap-3 items-center justify-center flex-wrap">
                 {battle.hand.map((card, idx) => {
                   const canPlay = battle.pa >= card.paCost;
                   const isSelected = selectedCard === card;
+                  const isMulliganSelected = mulliganSelected.includes(card);
                   
                   // Check if this is a signature card
                   const isSignatureCard = selectedHero && HERO_SIGNATURE_CARDS[selectedHero as HeroName]?.includes(card.id);
@@ -877,13 +979,25 @@ const TacticalScreen = () => {
                   return (
                     <button
                       key={`${card.id}-${idx}`}
-                      disabled={!canPlay}
-                      onClick={() => useCard(card)}
+                      disabled={!canPlay && !mulliganMode}
+                      onClick={() => {
+                        if (mulliganMode) {
+                          // Toggle mulligan selection
+                          if (isMulliganSelected) {
+                            setMulliganSelected(mulliganSelected.filter(c => c !== card));
+                          } else if (mulliganSelected.length < 2) {
+                            setMulliganSelected([...mulliganSelected, card]);
+                          }
+                        } else {
+                          useCard(card);
+                        }
+                      }}
                       className={cn(
                         "relative bg-gradient-to-br from-slate-800 to-slate-900 rounded-xl p-4 text-left transition-all duration-300",
                         "w-[150px] h-[220px] flex-shrink-0",
-                        canPlay ? "hover:scale-105 cursor-pointer" : "opacity-40 cursor-not-allowed",
-                        isSelected && "ring-4 ring-white scale-105"
+                        canPlay && !mulliganMode ? "hover:scale-105 cursor-pointer" : mulliganMode ? "cursor-pointer hover:scale-105" : "opacity-40 cursor-not-allowed",
+                        isSelected && !mulliganMode && "ring-4 ring-white scale-105",
+                        isMulliganSelected && "ring-4 ring-purple-500 scale-105"
                       )}
                       style={{ 
                         borderWidth: '3px',
@@ -928,9 +1042,15 @@ const TacticalScreen = () => {
                           </div>
                         )}
                         
-                        {isSelected && (
+                        {isSelected && !mulliganMode && (
                           <div className="mt-2 px-2 py-1 bg-white/20 rounded-full">
                             <span className="text-white text-[10px] font-bold uppercase">Selezionata</span>
+                          </div>
+                        )}
+                        
+                        {isMulliganSelected && mulliganMode && (
+                          <div className="mt-2 px-2 py-1 bg-purple-500/30 rounded-full border border-purple-400">
+                            <span className="text-purple-200 text-[10px] font-bold uppercase">🔄 Da Riciclare</span>
                           </div>
                         )}
                       </div>
