@@ -80,6 +80,7 @@ export const userResources = pgTable("user_resources", {
   wood: integer("wood").default(0),
   stone: integer("stone").default(0),
   gold: integer("gold").default(0),
+  isMineUnlocked: boolean("is_mine_unlocked").default(false), // Unlocked after defeating Boss Node 22
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
 });
 

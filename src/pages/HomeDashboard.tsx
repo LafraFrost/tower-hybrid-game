@@ -126,6 +126,7 @@ const HomeDashboard = () => {
   const [draggingId, setDraggingId] = useState<number | null>(null);
   const [selectedLocation, setSelectedLocation] = useState<number | null>(null);
   const [resources, setResources] = useState<any>({ wood: 0, stone: 0, gold: 0 });
+  const [isMineUnlocked, setIsMineUnlocked] = useState(false);
   const [mapImage, setMapImage] = useState('/assets/casa.jpg');
   const [isGoblinAttackActive, setIsGoblinAttackActive] = useState(false);
   const [goblinAttackMessage, setGoblinAttackMessage] = useState('');
@@ -316,11 +317,39 @@ const HomeDashboard = () => {
     // Try to load resources from API, fallback to mock data
     fetch('/api/user-resources', { credentials: 'include' })
       .then((res) => res.json())
-      .then((data) => setResources(data || { wood: 0, stone: 0, gold: 0 }))
+      .then((data) => {
+        setResources(data || { wood: 0, stone: 0, gold: 0 });
+        setIsMineUnlocked(!!data?.isMineUnlocked);
+      })
       .catch((err) => {
         console.warn('API not available, using default resources:', err);
         setResources({ wood: 500, stone: 300, gold: 150 });
       });
+
+    // Also try to load from Supabase user_resources
+    const loadFromSupabase = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('user_resources')
+          .select('wood, stone, gold, is_mine_unlocked')
+          .eq('user_id', 1)
+          .maybeSingle();
+
+        if (!error && data) {
+          console.log('✅ Resources loaded from Supabase:', data);
+          setResources({ 
+            wood: data.wood || 0, 
+            stone: data.stone || 0, 
+            gold: data.gold || 0 
+          });
+          setIsMineUnlocked(!!data.is_mine_unlocked);
+          console.log('🔓 Mine unlock status:', !!data.is_mine_unlocked);
+        }
+      } catch (err) {
+        console.error('Error loading from Supabase:', err);
+      }
+    };
+    loadFromSupabase();
   }, []);
 
   useEffect(() => {
@@ -392,6 +421,13 @@ const HomeDashboard = () => {
   const handleBuildRequest = async (loc: any) => {
     try {
       if (loc.is_built) return;
+
+      // Check if it's the mine and it's not unlocked yet
+      if (loc.buildingType === 'mine' && !isMineUnlocked) {
+        alert('🔒 La Miniera è bloccata! Devi sconfiggere il Boss del Nodo 22 nella Mappa Tattica per sbloccarla.');
+        setSelectedLocation(null);
+        return;
+      }
 
       // Se attacco goblin attivo, disabilita build per tutte le strutture tranne difesa
       if (isGoblinAttackActive && loc.buildingType !== 'defense') {
@@ -660,7 +696,9 @@ const HomeDashboard = () => {
               transform: 'translate(-50%, -50%)',
               cursor: DISABLE_BUILDING_DRAG ? 'default' : (draggingId === loc.id ? 'grabbing' : 'grab'),
               zIndex: selectedLocation === loc.id ? 1000 : draggingId === loc.id ? 100 : 10,
-              display: loc.buildingType === 'mine' && !isGoblinAttackActive ? 'none' : 'flex',
+              // Hide mine if not unlocked and not built, OR if goblin attack active
+              display: (loc.buildingType === 'mine' && !isMineUnlocked && !loc.is_built) || 
+                       (loc.buildingType === 'mine' && !isGoblinAttackActive) ? 'none' : 'flex',
               flexDirection: 'column-reverse', // etichetta sopra, immagine sotto
               alignItems: 'center',
               // Se attacco goblin attivo: disabilita solo gli edifici non-defense COSTRUITI

@@ -283,6 +283,9 @@ const TacticalScreen = () => {
   const [bossDefeated, setBossDefeated] = useState(false);
   const [selectedCard, setSelectedCard] = useState<GameCard | null>(null);
   const [showReshuffleMsg, setShowReshuffleMsg] = useState(false);
+  const [showBossVictory, setShowBossVictory] = useState(false);
+  const [showRewardPopup, setShowRewardPopup] = useState(false);
+  const [bossRewards, setBossRewards] = useState({ stone: 10, gold: 5 });
 
   // Load progress on mount (localStorage first, then sync with DB when selectedHero is ready)
   useEffect(() => {
@@ -639,10 +642,69 @@ const TacticalScreen = () => {
     setBattleNode(null);
     setBattle(null);
 
+    // Check if boss (Node 22) was defeated
     if (node.id === 22) {
       setBossDefeated(true);
-      await updateSupabaseProgress();
+      
+      // FASE A: Celebrazione
+      setShowBossVictory(true);
+      
+      // Auto-transition to rewards after 2 seconds
+      setTimeout(async () => {
+        setShowBossVictory(false);
+        
+        // FASE B: Premio
+        setShowRewardPopup(true);
+        
+        // Save rewards to database
+        await saveRewardsToDatabase(bossRewards.stone, bossRewards.gold);
+        await updateSupabaseProgress();
+      }, 2000);
     }
+  };
+
+  const saveRewardsToDatabase = async (stone: number, gold: number) => {
+    const url = import.meta.env.VITE_SUPABASE_URL;
+    const key = import.meta.env.VITE_SUPABASE_ANON_KEY;
+    if (!url || !key) {
+      console.error("Supabase non configurato.");
+      return;
+    }
+
+    try {
+      // Update user_resources with rewards
+      const response = await fetch(`${url}/rest/v1/user_resources?user_id=eq.1`, {
+        method: "PATCH",
+        headers: {
+          apikey: key,
+          Authorization: `Bearer ${key}`,
+          "Content-Type": "application/json",
+          Prefer: "return=minimal",
+        },
+        body: JSON.stringify({ 
+          stone: stone, // Add stone to existing amount
+          gold: gold    // Add gold to existing amount
+        }),
+      });
+
+      if (!response.ok) {
+        console.error("Errore salvataggio ricompense:", response.statusText);
+      } else {
+        console.log(`✅ Ricompense salvate: +${stone} Pietra, +${gold} Oro`);
+      }
+    } catch (err) {
+      console.error("Errore connessione database:", err);
+    }
+  };
+
+  const handleClaimRewards = () => {
+    // FASE C: Reindirizzamento dopo 3 secondi
+    setShowRewardPopup(false);
+    appendLog("🎉 Ricompense ottenute! Torno al villaggio...");
+    
+    setTimeout(() => {
+      setLocation("/village");
+    }, 3000);
   };
 
   const handleNodeClick = (node: Node) => {
@@ -687,6 +749,19 @@ const TacticalScreen = () => {
     }
 
     try {
+      // Update user_resources to unlock mine
+      await fetch(`${url}/rest/v1/user_resources?user_id=eq.1`, {
+        method: "PATCH",
+        headers: {
+          apikey: key,
+          Authorization: `Bearer ${key}`,
+          "Content-Type": "application/json",
+          Prefer: "return=minimal",
+        },
+        body: JSON.stringify({ is_mine_unlocked: true }),
+      });
+      
+      // Also update progress table if exists
       await fetch(`${url}/rest/v1/progress?user_id=eq.1`, {
         method: "PATCH",
         headers: {
@@ -697,7 +772,9 @@ const TacticalScreen = () => {
         },
         body: JSON.stringify({ mine_unlocked: true, goblin_defeated: true }),
       });
-      appendLog("Supabase: mine_unlocked e goblin_defeated impostati");
+      
+      appendLog("✅ Miniera sbloccata!");
+      console.log("✅ is_mine_unlocked impostato su true nel database");
     } catch (err) {
       console.error("Supabase error", err);
       appendLog("Supabase non raggiungibile per l'aggiornamento");
@@ -1109,6 +1186,82 @@ const TacticalScreen = () => {
                 Fine turno
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* FASE A: Boss Victory Celebration */}
+      {showBossVictory && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-lg animate-in fade-in duration-500">
+          <div className="relative text-center">
+            {/* Golden particles effect */}
+            <div className="absolute inset-0 pointer-events-none">
+              {[...Array(20)].map((_, i) => (
+                <div
+                  key={i}
+                  className="absolute w-2 h-2 bg-yellow-400 rounded-full animate-ping"
+                  style={{
+                    left: `${Math.random() * 100}%`,
+                    top: `${Math.random() * 100}%`,
+                    animationDelay: `${Math.random() * 2}s`,
+                    animationDuration: `${1 + Math.random() * 2}s`,
+                  }}
+                />
+              ))}
+            </div>
+
+            {/* Main message */}
+            <div className="relative">
+              <h1 className="text-9xl font-black text-transparent bg-clip-text bg-gradient-to-r from-yellow-400 via-amber-500 to-yellow-600 drop-shadow-2xl animate-pulse mb-4">
+                💀 CAPO GOBLIN 💀
+              </h1>
+              <h2 className="text-8xl font-black text-yellow-400 drop-shadow-2xl animate-bounce">
+                SCONFITTO!
+              </h2>
+              <p className="text-3xl text-amber-300 mt-8 font-bold animate-pulse">
+                ✨ Vittoria epica! ✨
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* FASE B: Reward Popup */}
+      {showRewardPopup && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 backdrop-blur-md animate-in fade-in zoom-in duration-300">
+          <div className="bg-gradient-to-br from-slate-900 to-slate-800 border-4 border-yellow-500 rounded-2xl p-10 max-w-md shadow-2xl">
+            <h2 className="text-5xl font-black text-center text-yellow-400 mb-6 drop-shadow-lg">
+              🎁 RICOMPENSE 🎁
+            </h2>
+            
+            <div className="space-y-4 mb-8">
+              <div className="flex items-center justify-between bg-slate-700/50 rounded-lg p-4 border-2 border-stone-500">
+                <span className="text-2xl font-bold text-stone-300">🪨 Pietra</span>
+                <span className="text-4xl font-black text-stone-100">+{bossRewards.stone}</span>
+              </div>
+              
+              <div className="flex items-center justify-between bg-slate-700/50 rounded-lg p-4 border-2 border-yellow-600">
+                <span className="text-2xl font-bold text-yellow-300">💰 Oro</span>
+                <span className="text-4xl font-black text-yellow-200">+{bossRewards.gold}</span>
+              </div>
+            </div>
+
+            <div className="text-center mb-6">
+              <p className="text-lg text-green-400 font-bold animate-pulse">
+                ✅ Miniera sbloccata al Villaggio!
+              </p>
+            </div>
+
+            <button
+              onClick={handleClaimRewards}
+              className="w-full py-4 px-6 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white text-2xl font-black rounded-xl shadow-lg transition-all duration-300 hover:scale-105 border-2 border-green-400"
+            >
+              🏆 RACCOGLI E TORNA AL VILLAGGIO
+            </button>
+
+            <p className="text-sm text-slate-400 text-center mt-4">
+              (Reindirizzamento automatico tra 3 secondi dopo il click)
+            </p>
           </div>
         </div>
       )}
