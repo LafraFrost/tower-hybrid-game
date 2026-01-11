@@ -106,24 +106,7 @@ const HomeDashboard = () => {
       .catch((err) => console.error('Errore caricamento posizioni:', err));
   }, []);
 
-  const handleDevToggleGoblinAttack = async () => {
-    try {
-      const newState = !isGoblinAttackActive;
-      const res = await fetch('/api/dev/trigger-goblin-attack', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ isActive: newState })
-      });
-
-      if (res.ok) {
-        const data = await res.json();
-        setIsGoblinAttackActive(data.isActive ?? newState);
-      }
-    } catch (err) {
-      console.error('Errore nel toggle attacco goblin:', err);
-    }
-  };
+  // Dev toggle removed: no dev endpoint to trigger goblin attack from client
 
   useEffect(() => {
     loadLocations();
