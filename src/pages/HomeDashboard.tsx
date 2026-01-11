@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useLocation } from 'wouter';
 import { supabase } from '@/lib/supabaseClient';
+import ResourceBar, { MenuButton, ResetButton } from '@/components/ResourceBar';
 
 const HomeDashboard = () => {
   const [, setLocation] = useLocation(); // Router per navigazione
