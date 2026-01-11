@@ -3,6 +3,23 @@ import { useLocation } from 'wouter';
 import { supabase } from '@/lib/supabaseClient';
 import ResourceBar, { MenuButton, ResetButton } from '@/components/ResourceBar';
 
+const getBuildingSprite = (loc: any) => {
+  const type = loc.buildingType || (loc.building_type as string) || (loc.name || '').toLowerCase().includes('miniera') ? 'mine' : 'house';
+  if (type === 'mine') {
+    if (loc.is_built) return '/assets/miniera.png';
+    // return a small SVG triangle marker as data URL for unbuilt mine
+    return 'data:image/svg+xml;utf8,' + encodeURIComponent(
+      '<svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 64 64"><polygon points="32,6 58,58 6,58" fill="%23F59E0B" stroke="%23FFFFFF" stroke-width="3"/></svg>'
+    );
+  }
+  if (type === 'sawmill') return '/assets/segheria.png';
+  if (type === 'farm') return '/assets/orto.png';
+  if (type === 'blacksmith') return '/assets/fucina.png';
+  if (type === 'bridge') return '/assets/ponte.png';
+  // house/warehouse fallback
+  return '/assets/magazzino.png';
+};
+
 const normalizeBuildingType = (loc: any) => {
   return loc.building_type || (loc.name?.toLowerCase().includes('miniera') ? 'mine' : 'house');
 };
