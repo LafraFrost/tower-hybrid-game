@@ -1,180 +1,107 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { useLocation } from 'wouter';
 import { supabase } from '@/lib/supabaseClient';
-import TacticalScreen from '@/pages/TacticalScreen';
-import { GoblinAttackBanner } from '@/components/GoblinAttackBanner';
+  return (
+    <div className="relative w-full h-screen overflow-hidden bg-slate-900">
+      {/* LIVELLO 0: MAPPA DI SFONDO */}
+      <img 
+        src={mapImage} 
+        className="absolute inset-0 w-full h-full object-cover z-0" 
+        alt="Villaggio" 
+      />
 
-const buildingAssets: Record<string, string> = {
-  sawmill: '/assets/segheria.png',
-  mine: '/assets/miniera.png',
-  warehouse: '/assets/magazzino.png',
-  farm: '/assets/orto.png',
-  blacksmith: '/assets/fucina.png',
-  bridge: '/assets/ponte.png',
-};
+      {/* LIVELLO 1: EDIFICI E TRIANGOLI (Z-INDEX 10) */}
+      <div className="absolute inset-0 z-10">
+        {locations.map((loc) => {
+          const type = normalizeBuildingType(loc);
+          // Trigger miniera: precedenza assoluta
+          if (normalizeBuildingType(loc) === 'mine' && loc.is_unlocked && !loc.is_built && !loc.mine_map_completed) {
+            return (
+              <div 
+                key={`mine-trigger-${loc.id}`}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  console.log("Direzione Mappa 22 attiva!");
+                  window.location.href = '/map/22';
+                }}
+                className="absolute z-[9999] cursor-pointer animate-bounce pointer-events-auto"
+                style={{ 
+                  top: `${loc.coordinate_y}%`, 
+                  left: `${loc.coordinate_x}%`, 
+                  transform: 'translate(-50%, -50%)' 
+                }}
+              >
+                <div className="flex flex-col items-center">
+                  <div className="bg-yellow-500 text-black font-bold text-[10px] px-2 py-1 rounded border-2 border-white shadow-2xl">
+                    VAI MAPPA 22
+                  </div>
+                  <div className="w-0 h-0 border-l-[6px] border-r-[6px] border-t-[10px] border-t-yellow-500"></div>
+                </div>
+              </div>
+            );
+          }
+          // Trigger per altri edifici di produzione (esclude la miniera)
+          const isProduction = ['sawmill', 'farm', 'bridge'].includes(type || '');
+          if (loc.is_unlocked && !loc.is_built && isProduction) {
+            return (
+              <div 
+                key={`trigger-${loc.id}`}
+                onClick={() => setSelectedLocation(loc.id)}
+                className="absolute cursor-pointer animate-bounce group"
+                style={{ 
+                  top: `${loc.coordinate_y || 38}%`, 
+                  left: `${loc.coordinate_x || 52}%`, 
+                  transform: 'translate(-50%, -50%)',
+                  pointerEvents: 'auto' 
+                }}
+              >
+                <div className="flex flex-col items-center">
+                  <div className="bg-yellow-500 text-black font-black text-[10px] px-2 py-1 rounded border border-white shadow-xl">
+                    COSTRUISCI
+                  </div>
+                  <div className="w-0 h-0 border-l-[8px] border-r-[8px] border-t-[12px] border-t-yellow-500"></div>
+                </div>
+              </div>
+            );
+          }
 
-const hammerIcon = '/assets/martello.png';
-const DISABLE_BUILDING_DRAG = true;
+          // EDIFICIO COSTRUITO
+          if (loc.is_built) {
+            return (
+              <div 
+                key={`built-${loc.id}`}
+                className="absolute transition-transform hover:scale-110"
+                style={{ 
+                  top: `${loc.coordinate_y}%`, 
+                  left: `${loc.coordinate_x}%`, 
+                  transform: 'translate(-50%, -50%)' 
+                }}
+              >
+                <img 
+                  src={buildingAssets[type || 'warehouse']} 
+                  className="w-20 h-20 object-contain"
+                  alt={loc.name}
+                />
+              </div>
+            );
+          }
+          
+          return null;
+        })}
+      </div>
 
-console.log('🏗️ HomeDashboard caricato - DISABLE_BUILDING_DRAG:', DISABLE_BUILDING_DRAG);
 
-const normalizeBuildingType = (loc: any) => {
-  if (loc.buildingType) return loc.buildingType;
-  if (loc.building_type) return loc.building_type;
-  const n = (loc.name || '').toLowerCase();
-  if (n.includes('magazz')) return 'warehouse';
-  if (n.includes('segh') || n.includes('sawmill')) return 'sawmill';
-  if (n.includes('minier') || n.includes('mine')) return 'mine';
-  if (n.includes('orto') || n.includes('farm')) return 'farm';
-  if (n.includes('fucin') || n.includes('forge')) return 'blacksmith';
-  if (n.includes('pont') || n.includes('bridge')) return 'bridge';
-  return undefined;
-};
-
-// Sprite selector: returns ruin sprite if building is ruined, normal sprite otherwise (or hammer if not built)
-const getBuildingSprite = (loc: any, ruinedBuildings: string[]) => {
-  const bt = normalizeBuildingType(loc);
-  const isBuilt = Boolean(loc.is_built);
-  if (!isBuilt) return hammerIcon;
-  if (bt && ruinedBuildings.includes(loc.name)) {
-    return `/assets/buildings/${bt}_ruin.png`;
-  }
-  return bt ? (buildingAssets[bt] || '/assets/magazzino.png') : '/assets/magazzino.png';
-};
-
-const ResourceBar = ({ resources }: { resources: any }) => (
-  <div style={{
-    position: 'absolute',
-    top: '20px',
-    left: '50%',
-    transform: 'translateX(-50%)',
-    display: 'flex',
-    gap: '20px',
-    backgroundColor: 'rgba(0, 0, 0, 0.7)',
-    padding: '10px 25px',
-    borderRadius: '30px',
-    border: '2px solid #DAA520',
-    zIndex: 2000,
-    color: 'white',
-    fontWeight: 'bold',
-    boxShadow: '0 4px 10px rgba(0,0,0,0.5)'
-  }}>
-    <div title="Legno">🪵 {resources.wood || 0}</div>
-    <div title="Pietra">🪨 {resources.stone || 0}</div>
-    <div title="Oro">💰 {resources.gold || 0}</div>
-  </div>
-);
-
-const MenuButton = () => (
-  <button
-    onClick={() => { window.location.href = '/'; }}
-    style={{
-      position: 'absolute',
-      top: '20px',
-      left: '20px',
-      padding: '10px 15px',
-      backgroundColor: '#444',
-      color: 'white',
-      border: '1px solid #777',
-      borderRadius: '8px',
-      cursor: 'pointer',
-      zIndex: 2000,
-      display: 'flex',
-      alignItems: 'center',
-      gap: '5px',
-    }}
-  >
-    🏠 Menu
-  </button>
-);
-
-const DevTriggerButton = ({ isActive, onStart }: { isActive: boolean; onStart: () => void }) => (
-  <button 
-    onClick={onStart}
-    disabled={isActive}
-    style={{
-      position: 'absolute',
-      top: '20px',
-      right: '20px',
-      opacity: 0.95,
-      fontSize: '12px',
-      padding: '8px 12px',
-      backgroundColor: isActive ? '#374151' : '#22c55e',
-      color: 'white',
-      border: '2px solid ' + (isActive ? '#6b7280' : '#16a34a'),
-      borderRadius: '4px',
-      cursor: isActive ? 'not-allowed' : 'pointer',
-      zIndex: 9999,
-      transition: 'all 0.3s',
-      fontWeight: 'bold',
-      pointerEvents: 'auto',
-    }}
-    title={isActive ? 'Evento Goblin in corso' : 'Avvia Sequenza Evento Goblin'}
-    onMouseEnter={(e) => {
-      e.currentTarget.style.opacity = '1';
-      e.currentTarget.style.boxShadow = isActive ? '0 0 12px rgba(107,114,128,0.8)' : '0 0 15px rgba(34,197,94,0.8)';
-    }}
-    onMouseLeave={(e) => {
-      e.currentTarget.style.opacity = '0.95';
-      e.currentTarget.style.boxShadow = 'none';
-    }}
-  >
-    {isActive ? '⏳ Evento Goblin in corso' : '▶️ Avvia Evento Goblin'}
-  </button>
-);
-
-const ResetButton = ({ onReset }: { onReset: () => void }) => (
-  <button 
-    onClick={onReset}
-    style={{
-      position: 'absolute',
-      bottom: '20px',
-      right: '20px',
-      opacity: 0.85,
-      fontSize: '14px',
-      padding: '10px 14px',
-      backgroundColor: '#dc2626',
-      color: 'white',
-      border: '2px solid #991b1b',
-      borderRadius: '50%',
-      width: '50px',
-      height: '50px',
-      cursor: 'pointer',
-      zIndex: 2001,
-      transition: 'all 0.3s',
-      fontWeight: 'bold',
-      pointerEvents: 'auto',
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-    }}
-    onMouseEnter={(e) => {
-      e.currentTarget.style.opacity = '1';
-      e.currentTarget.style.boxShadow = '0 0 20px rgba(220, 38, 38, 0.8)';
-      e.currentTarget.style.transform = 'scale(1.1)';
-    }}
-    onMouseLeave={(e) => {
-      e.currentTarget.style.opacity = '0.85';
-      e.currentTarget.style.boxShadow = 'none';
-      e.currentTarget.style.transform = 'scale(1)';
-    }}
-    title="Reset Totale - Cancella tutti i progressi"
-  >
-    🗑️
-  </button>
-);
 
 
 
 const HomeDashboard = () => {
+  const [, setLocation] = useLocation(); // Router per navigazione
   const [locations, setLocations] = useState<any[]>([]);
   const [draggingId, setDraggingId] = useState<number | null>(null);
   const [selectedLocation, setSelectedLocation] = useState<number | null>(null);
   const [resources, setResources] = useState<any>({ wood: 0, stone: 0, gold: 0 });
   const [mapImage, setMapImage] = useState('/assets/casa.jpg');
-  const [isGoblinAttackActive, setIsGoblinAttackActive] = useState(false);
   const [isDefending, setIsDefending] = useState(false);
-  const [defendedBuildings, setDefendedBuildings] = useState<string[]>([]);
-  const [ruinedBuildings, setRuinedBuildings] = useState<string[]>([]);
   const [activeMiniCombat, setActiveMiniCombat] = useState<string | null>(null);
   const [showRepairPopup, setShowRepairPopup] = useState(false);
   const [repairTarget, setRepairTarget] = useState<any>(null);
@@ -183,6 +110,9 @@ const HomeDashboard = () => {
   const defenseCheckDoneRef = useRef(false);
   const [showMineRebuildPopup, setShowMineRebuildPopup] = useState(false);
   const [mineRebuildCost] = useState<{ stone: number; gold: number }>({ stone: 100, gold: 50 });
+  
+  // Derive isGoblinAttackActive from locations to prevent flash on mount
+  const isGoblinAttackActive = locations.some(loc => Boolean(loc.is_under_attack) && Boolean(loc.is_built));
 
   // Helper: refresh locations from Supabase and update local state
   const fetchLocations = async (): Promise<boolean> => {
@@ -259,12 +189,12 @@ const HomeDashboard = () => {
     
     // Locations con coordinate salvate (martelli per non costruiti, edifici dopo pagamento)
     const baseLocations = [
-      { id: 1, name: 'Magazzino', buildingType: 'warehouse', coordinateX: 35.0, coordinateY: 42.0, is_built: false, requiredWood: 100, requiredStone: 50, requiredGold: 20 },
-      { id: 2, name: 'Orto', buildingType: 'farm', coordinateX: 40.0, coordinateY: 48.0, is_built: true, requiredWood: 80, requiredStone: 30, requiredGold: 10 },
-      { id: 3, name: 'Fucina', buildingType: 'blacksmith', coordinateX: 30.0, coordinateY: 55.0, is_built: false, requiredWood: 120, requiredStone: 80, requiredGold: 50 },
-      { id: 4, name: 'Ponte', buildingType: 'bridge', coordinateX: 60.0, coordinateY: 50.0, is_built: false, requiredWood: 150, requiredStone: 100, requiredGold: 30 },
-      { id: 5, name: 'Miniera', buildingType: 'mine', coordinateX: 52.0, coordinateY: 38.0, is_built: false, requiredWood: 90, requiredStone: 120, requiredGold: 40 },
-      { id: 6, name: 'Segheria', buildingType: 'sawmill', coordinateX: 20.0, coordinateY: 45.0, is_built: false, requiredWood: 60, requiredStone: 40, requiredGold: 15 },
+      { id: 1, name: 'Magazzino', buildingType: 'warehouse', coordinateX: 35.0, coordinateY: 42.0, is_built: false, is_unlocked: true, requiredWood: 100, requiredStone: 50, requiredGold: 20 },
+      { id: 2, name: 'Orto', buildingType: 'farm', coordinateX: 40.0, coordinateY: 48.0, is_built: true, is_unlocked: true, requiredWood: 80, requiredStone: 30, requiredGold: 10 },
+      { id: 3, name: 'Fucina', buildingType: 'blacksmith', coordinateX: 30.0, coordinateY: 55.0, is_built: false, is_unlocked: true, requiredWood: 120, requiredStone: 80, requiredGold: 50 },
+      { id: 4, name: 'Ponte', buildingType: 'bridge', coordinateX: 60.0, coordinateY: 50.0, is_built: false, is_unlocked: true, requiredWood: 150, requiredStone: 100, requiredGold: 30 },
+      { id: 5, name: 'Miniera', buildingType: 'mine', coordinateX: 52.0, coordinateY: 38.0, is_built: false, is_unlocked: false, requiredWood: 90, requiredStone: 120, requiredGold: 40 },
+      { id: 6, name: 'Segheria', buildingType: 'sawmill', coordinateX: 20.0, coordinateY: 45.0, is_built: false, is_unlocked: true, requiredWood: 60, requiredStone: 40, requiredGold: 15 },
     ];
 
     // Try to load from Supabase if available, otherwise use baseLocations
@@ -350,16 +280,6 @@ const HomeDashboard = () => {
     };
   }, []);
 
-  const handleStartDefense = () => {
-    // Clean state before starting defense mode
-    setIsDefending(false); // Ensure clean state
-    setTimeout(() => {
-      setIsDefending(true);
-      defenseCheckDoneRef.current = false; // Reset debounce flag
-      console.log('🛡️ Defense mode activated');
-    }, 0);
-  };
-
   const startGoblinAttackSequence = async () => {
     if (isGoblinAttackActive) return;
     try {
@@ -385,27 +305,20 @@ const HomeDashboard = () => {
         if (insErr) console.warn('⚠️ Errore inserimento evento Goblin:', insErr);
       }
 
-      // Clear local defended/ruined state for a fresh wave
-      try {
-        localStorage.setItem('defended_buildings', JSON.stringify([]));
-        localStorage.setItem('ruined_buildings', JSON.stringify([]));
-      } catch {}
-      setDefendedBuildings([]);
-      setRuinedBuildings([]);
+      // Clear local state - DB-driven only (no localStorage)
 
       // Mark built locations (except Mine) as under attack in DB
       const targets = locations.filter((l) => Boolean(l.is_built) && normalizeBuildingType(l) !== 'mine');
       for (const loc of targets) {
         const { error: locErr } = await supabase
           .from('game_locations')
-          .update({ is_under_attack: true, is_ruined: false })
+          .update({ is_under_attack: true })
           .eq('id', loc.id);
         if (locErr) console.warn(`⚠️ Errore set under_attack per ${loc.name}:`, locErr);
       }
 
       // Refresh and enter defense mode
       const refreshed = await fetchLocations();
-      setIsGoblinAttackActive(true);
       setIsDefending(true);
       if (!refreshed) {
         showToast('warning', 'Evento avviato, ma sincronizzazione locations non riuscita.', { duration: 3500 });
@@ -451,7 +364,8 @@ const HomeDashboard = () => {
         }
       }
 
-      setIsGoblinAttackActive(newStatus);
+      // Reload locations to update derived isGoblinAttackActive
+      await fetchLocations();
       
       // Reset defense mode and toasts when disabling attack
       if (!newStatus) {
@@ -517,15 +431,6 @@ const HomeDashboard = () => {
       }
     };
     loadFromSupabase();
-    // Load defense outcomes from localStorage
-    try {
-      const def = localStorage.getItem('defended_buildings');
-      const ruin = localStorage.getItem('ruined_buildings');
-      const defending = localStorage.getItem('is_defending');
-      setDefendedBuildings(def ? JSON.parse(def) : []);
-      setRuinedBuildings(ruin ? JSON.parse(ruin) : []);
-      setIsDefending(defending === 'true');
-    } catch {}
   }, []);
 
   useEffect(() => {
@@ -534,8 +439,9 @@ const HomeDashboard = () => {
       .channel('events-changes')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'events' }, (payload: any) => {
         console.log('Real-time event update:', payload);
+        // Reload locations to update derived isGoblinAttackActive
         if (payload?.new?.event_type === 'goblin_attack') {
-          setIsGoblinAttackActive(!!payload.new.is_active);
+          loadLocations();
         }
       })
       .subscribe();
@@ -549,7 +455,8 @@ const HomeDashboard = () => {
         .maybeSingle();
 
       if (!error && data) {
-        setIsGoblinAttackActive(!!data.is_active);
+        // State is now derived from locations, just log
+        console.log('🎯 Goblin event loaded:', data.is_active ? 'ACTIVE' : 'INACTIVE');
       }
     };
 
@@ -560,12 +467,7 @@ const HomeDashboard = () => {
     };
   }, []);
 
-  // Save isDefending state to localStorage
-  useEffect(() => {
-    try {
-      localStorage.setItem('is_defending', isDefending ? 'true' : 'false');
-    } catch {}
-  }, [isDefending]);
+  // isDefending state is managed locally (no persistence needed)
 
   // Quando attacco goblin si attiva, passa direttamente a modalità difesa (banner fisso al top, no toast)
   useEffect(() => {
@@ -575,16 +477,15 @@ const HomeDashboard = () => {
     }
   }, [isGoblinAttackActive]);
 
-  // Hide red alert when no buildings under attack remain, and show camp triangle if mine not unlocked
-  // Debounced: runs only once after all buildings are defended/ruined, prevents loop
+  // Hide red alert when no buildings under attack remain
+  // Debounced: runs only once after all buildings are handled, prevents loop
   useEffect(() => {
     const anyUnderAttack = locations.some((loc) => {
       const bt = normalizeBuildingType(loc);
       if (!bt) return false;
       const built = Boolean(loc.is_built);
-      const defended = defendedBuildings.includes(loc.name);
-      const ruined = ruinedBuildings.includes(loc.name);
-      return isGoblinAttackActive && built && !defended && !ruined;
+      const underAttack = Boolean(loc.is_under_attack);
+      return isGoblinAttackActive && built && underAttack;
     });
     
     if (!anyUnderAttack && isGoblinAttackActive) {
@@ -605,7 +506,15 @@ const HomeDashboard = () => {
         defenseCheckDoneRef.current = false;
       }
     }
-  }, [isGoblinAttackActive, defendedBuildings, ruinedBuildings, locations, isDefending]);
+  }, [isGoblinAttackActive, locations, isDefending]);
+
+  // Reset defense mode when closing TacticalScreen (e.g., returning from Boss battle)
+  useEffect(() => {
+    if (activeMiniCombat === null && isDefending) {
+      setIsDefending(false);
+      console.log('🎬 TacticalScreen chiuso - isDefending resettato a false');
+    }
+  }, [activeMiniCombat]);
 
 
   const handleMouseDown = (id: number) => {
@@ -744,14 +653,8 @@ const HomeDashboard = () => {
       console.warn('Supabase repair update failed (using local only):', err);
     }
 
-    // Remove from ruined_buildings
-    try {
-      const ruin = localStorage.getItem('ruined_buildings');
-      const list: string[] = ruin ? JSON.parse(ruin) : [];
-      const next = list.filter((name) => name !== repairTarget.name);
-      localStorage.setItem('ruined_buildings', JSON.stringify(next));
-      setRuinedBuildings(next);
-    } catch {}
+    // DB-driven: building repair is now persisted in Supabase only
+    await fetchLocations(); // Refresh locations from DB
 
     showToast('success', `🛠️ ${repairTarget.name} riparato correttamente! Bonus passivi riattivati.`, { duration: 3000 });
     setShowRepairPopup(false);
@@ -874,14 +777,7 @@ const HomeDashboard = () => {
   };
 
   const handleMiniCombatVictory = async (buildingName: string) => {
-    // Mark building as defended - persists state locally WITHOUT page reload
-    const updatedDefended = [...defendedBuildings, buildingName];
-    setDefendedBuildings(updatedDefended);
-    try {
-      localStorage.setItem('defended_buildings', JSON.stringify(updatedDefended));
-    } catch {}
-    
-    // Update Supabase game_locations to clear under_attack flag AND reset is_ruined
+    // Update Supabase game_locations to clear under_attack flag
     const buildingLoc = locations.find((l) => l.name === buildingName);
     let buildingUpdateSuccess = true;
     
@@ -889,7 +785,7 @@ const HomeDashboard = () => {
       try {
         const { error } = await supabase
           .from('game_locations')
-          .update({ is_under_attack: false, is_ruined: false })
+          .update({ is_under_attack: false })
           .eq('id', buildingLoc.id);
         
         if (error) {
@@ -912,13 +808,13 @@ const HomeDashboard = () => {
     }
 
     // Determine if this was the last building under attack (based on local state)
+    // Check if any buildings still under attack (using DB field)
     const anyUnderAttackLeft = locations.some((loc) => {
       const bt = normalizeBuildingType(loc);
       if (!bt) return false;
       const built = Boolean(loc.is_built);
-      const defended = updatedDefended.includes(loc.name);
-      const ruined = ruinedBuildings.includes(loc.name);
-      return isGoblinAttackActive && built && !defended && !ruined;
+      const underAttack = Boolean(loc.is_under_attack);
+      return isGoblinAttackActive && built && underAttack && loc.name !== buildingName;
     });
 
     // If no buildings left under attack, kill the goblin event and unlock mine in DB
@@ -934,18 +830,38 @@ const HomeDashboard = () => {
         return; // Do not close UI if DB failed
       }
 
-      // Unlock the Mine on DB
-      const mineLoc = locations.find((l) => normalizeBuildingType(l) === 'mine');
-      if (mineLoc) {
-        const { error: mineErr } = await supabase
-          .from('game_locations')
-          .update({ is_unlocked: true })
-          .eq('id', mineLoc.id);
-        if (mineErr) {
-          console.warn('⚠️ Failed to unlock Mine:', mineErr);
-          showToast('error', 'Errore DB: impossibile sbloccare la Miniera.');
-          return; // Do not close UI if DB failed
+      // Unlock the Mine on DB ONLY if all buildings were defended (no ruins)
+      const allDefended = locations
+        .filter((l) => Boolean(l.is_built) && normalizeBuildingType(l) !== 'mine')
+        .every((l) => updatedDefended.includes(l.name));
+      
+      console.log('🏆 Difesa completata - Tutti gli edifici difesi:', allDefended);
+      
+      if (allDefended) {
+        const mineLoc = locations.find((l) => normalizeBuildingType(l) === 'mine');
+        if (mineLoc) {
+          console.log('🔓 Sblocco Miniera - is_unlocked prima:', mineLoc.is_unlocked);
+          const { error: mineErr } = await supabase
+            .from('game_locations')
+            .update({ is_unlocked: true })
+            .eq('id', mineLoc.id);
+          if (mineErr) {
+            console.warn('⚠️ Failed to unlock Mine:', mineErr);
+            showToast('error', 'Errore DB: impossibile sbloccare la Miniera.');
+            return; // Do not close UI if DB failed
+          }
+          console.log('✅ Miniera sbloccata con successo!');
+          showToast('success', '⛏️ Miniera sbloccata! Ricostruiscila per accedere all\'estrazione.', { duration: 5000 });
+          
+          // Sync locations immediately after unlock to update UI
+          const mineRefreshed = await fetchLocations();
+          if (!mineRefreshed) {
+            console.warn('⚠️ Failed to refresh locations after Mine unlock');
+          }
         }
+      } else {
+        console.log('⚠️ Miniera NON sbloccata - alcuni edifici sono stati distrutti');
+        showToast('warning', 'Evento terminato, ma alcuni edifici sono stati distrutti. Miniera non sbloccata.', { duration: 4000 });
       }
     }
 
@@ -956,25 +872,18 @@ const HomeDashboard = () => {
       return; // Keep defense mode if refresh fails
     }
 
-    // Clean up UI only after DB success and refresh
+    // Clean up UI IMMEDIATELY after DB success and refresh (prima dei toast)
     setIsDefending(false);
     setActiveMiniCombat(null);
     
-    // Show victory toast feedback
+    // Show victory toast feedback DOPO aver pulito lo stato
     showToast('success', `✅ ${buildingName} è stato difeso!`, { duration: 3000 });
     
-    console.log('🎉 Mini combat victory:', buildingName);
+    console.log('🎉 Mini combat victory:', buildingName, '- isDefending resettato a false');
   };
 
   const handleMiniCombatDefeat = async (buildingName: string) => {
-    // Mark building as ruined - persists state locally WITHOUT page reload
-    const updatedRuined = [...ruinedBuildings, buildingName];
-    setRuinedBuildings(updatedRuined);
-    try {
-      localStorage.setItem('ruined_buildings', JSON.stringify(updatedRuined));
-    } catch {}
-    
-    // Update Supabase game_locations to mark as ruined
+    // Update Supabase game_locations to clear under_attack flag
     const buildingLoc = locations.find((l) => l.name === buildingName);
     let buildingUpdateSuccess = true;
     
@@ -982,7 +891,7 @@ const HomeDashboard = () => {
       try {
         const { error } = await supabase
           .from('game_locations')
-          .update({ is_ruined: true, is_under_attack: false })
+          .update({ is_under_attack: false })
           .eq('id', buildingLoc.id);
         
         if (error) {
@@ -1004,14 +913,13 @@ const HomeDashboard = () => {
       return;
     }
 
-    // Determine if this was the last building under attack
+    // Check if any buildings still under attack (using DB field)
     const anyUnderAttackLeft = locations.some((loc) => {
       const bt = normalizeBuildingType(loc);
       if (!bt) return false;
       const built = Boolean(loc.is_built);
-      const defended = defendedBuildings.includes(loc.name);
-      const ruined = updatedRuined.includes(loc.name);
-      return isGoblinAttackActive && built && !defended && !ruined;
+      const underAttack = Boolean(loc.is_under_attack);
+      return isGoblinAttackActive && built && underAttack && loc.name !== buildingName;
     });
 
     // If none left, deactivate goblin event (do not unlock Mine on defeat)
@@ -1051,32 +959,15 @@ const HomeDashboard = () => {
 
     console.log('🌪️ Starting Great Wipe...');
 
-    // 1. Clear localStorage
-    const keysToDelete = [
-      'soloMapProgress_v1',
-      'tower_hybrid_hero_state',
-      'ruined_buildings',
-      'defended_buildings',
-      'is_defending',
-      'is_mine_unlocked',
-    ];
-    keysToDelete.forEach(key => {
-      try {
-        localStorage.removeItem(key);
-        console.log(`✓ Deleted localStorage: ${key}`);
-      } catch {}
-    });
-
-    // 2. Clear Supabase
+    // Clear Supabase data
     try {
-      // Reset resources to initial values (note: is_mine_unlocked column does not exist in user_resources table)
+      // Reset resources to initial values
       const { error: resError } = await supabase
         .from('user_resources')
         .update({ 
           wood: 0,
           stone: 50,
           gold: 0,
-          // is_mine_unlocked: false  // ❌ COMMENTED: Column does not exist in user_resources table
         })
         .eq('user_id', 1);
 
@@ -1096,6 +987,18 @@ const HomeDashboard = () => {
         console.warn('⚠️ Could not reset buildings:', buildError);
       } else {
         console.log('✓ Buildings reset in Supabase');
+      }
+
+      // Reset Mine unlock status
+      const { error: mineResetError } = await supabase
+        .from('game_locations')
+        .update({ is_unlocked: false })
+        .eq('name', 'Miniera');
+
+      if (mineResetError) {
+        console.warn('⚠️ Could not reset Mine unlock:', mineResetError);
+      } else {
+        console.log('✓ Mine unlock status reset in Supabase');
       }
 
       // Disable goblin attack event
@@ -1130,456 +1033,76 @@ const HomeDashboard = () => {
   };
 
   return (
-    <div
-      style={{ width: '100vw', height: '100vh', display: 'flex', justifyContent: 'center', alignItems: 'center', backgroundColor: '#1a1a1a', position: 'relative' }}
+    <div 
+      className="relative w-full h-screen overflow-hidden bg-black select-none"
+      onMouseMove={handleMouseMove}
+      onMouseUp={handleMouseUp}
+      ref={mapRef}
     >
-      {/* Tactical Card Battle System for Village Defense */}
-      {activeMiniCombat && (
-        <TacticalScreen
-          isVillageDefenseMode={true}
-          buildingName={activeMiniCombat}
-          onVillageVictory={(buildingName) => handleMiniCombatVictory(buildingName)}
-          onVillageDefeat={(buildingName) => handleMiniCombatDefeat(buildingName)}
-          onVillageClose={() => setActiveMiniCombat(null)}
-        />
-      )}
-      
-      {/* Goblin Attack Banner - Isolated Component */}
-      <GoblinAttackBanner isActive={isGoblinAttackActive} />
-      
-      <MenuButton />
-      <DevTriggerButton isActive={isGoblinAttackActive} onStart={startGoblinAttackSequence} />
-      <ResetButton onReset={handleReset} />
-      <ResourceBar resources={resources} />
+      {/* 1. SFONDO MAPPA */}
+      <img 
+        src={mapImage} 
+        alt="Villaggio" 
+        className="w-full h-full object-cover pointer-events-none"
+      />
 
-      {/* Toast container - bottom-right corner, pointer-events-none by default */}
-      <div style={{ position: 'fixed', bottom: '20px', right: '20px', zIndex: 5000, display: 'flex', flexDirection: 'column', gap: '8px', pointerEvents: 'none', maxWidth: '400px' }}>
-        {toasts.map((t) => {
-          const isResourceToast = ['🪵', '🪨', '💰'].some(emoji => t.message.includes(emoji));
+
+      {/* 3. ALTRI EDIFICI E MARTELLI */}
+      {locations
+        .filter((loc) => normalizeBuildingType(loc) !== 'mine')
+        .map((loc) => {
           return (
             <div
-              key={t.id}
+              key={loc.id}
+              onMouseDown={() => handleMouseDown(loc.id)}
+              onClick={() => setSelectedLocation(loc.id)}
+              className="absolute cursor-pointer transition-transform hover:scale-110"
               style={{
-                pointerEvents: t.persistent ? 'auto' : 'none',
-                backgroundColor: t.type === 'error' ? 'rgba(220,38,38,0.9)' : t.type === 'warning' ? 'rgba(234,179,8,0.9)' : t.type === 'success' ? 'rgba(34,197,94,0.9)' : 'rgba(59,130,246,0.9)',
-                color: 'white',
-                padding: isResourceToast ? '6px 10px' : '10px 16px',
-                borderRadius: '8px',
-                border: '2px solid rgba(255,255,255,0.25)',
-                boxShadow: '0 4px 12px rgba(0,0,0,0.4)',
-                fontWeight: 700,
-                fontSize: isResourceToast ? '12px' : '14px',
-                textAlign: 'center',
-                minWidth: isResourceToast ? 'auto' : '280px',
+                top: `${loc.coordinateY || 50}%`,
+                left: `${loc.coordinateX || 50}%`,
+                transform: 'translate(-50%, -50%)',
+                zIndex: draggingId === loc.id ? 1000 : 100,
               }}
             >
-              {t.message}
-              {t.persistent && (
-                <button
-                  onClick={() => dismissToast(t.id)}
-                  style={{
-                    marginLeft: '10px',
-                    backgroundColor: 'transparent',
-                    border: 'none',
-                    color: '#fff',
-                    cursor: 'pointer',
-                    fontWeight: 900,
-                    fontSize: '16px',
-                    padding: '0',
-                  }}
-                >
-                  ×
-                </button>
-              )}
+              <img 
+                src={getBuildingSprite(loc)} 
+                alt={loc.name} 
+                className={`w-16 h-16 object-contain ${!loc.is_built ? 'opacity-80' : ''}`} 
+              />
             </div>
           );
         })}
-      </div>
 
-      {/* Container Globale degli Eventi */}
-      <div className="fixed inset-0 z-[60] pointer-events-none">
-        
-        {/* 1. Overlay Rosso (Solo Visivo) */}
-        {isGoblinAttackActive && (
-          <div className={`absolute inset-0 transition-opacity duration-1000 ${
-            isDefending ? 'bg-red-900/20 border-[12px] border-red-600/30 animate-pulse pointer-events-none' : 'bg-red-600/80'
-          }`} />
-        )}
+      {/* UI OVERLAYS (ResourceBar, Menu, Toasts) */}
+      <ResourceBar resources={resources} />
+      <MenuButton />
+      <DevTriggerButton isActive={isGoblinAttackActive} onStart={startGoblinAttackSequence} />
+      <ResetButton onReset={handleReset} />
 
-        {/* 2. Menu/Messaggio Centrale (Cliccabile) */}
-        {!isDefending && isGoblinAttackActive && (
-          <div className="absolute inset-0 flex items-center justify-center pointer-events-auto">
-            <div className="bg-black/90 p-8 border-4 border-red-600 text-center max-w-md">
-              <h2 className="text-4xl font-black text-red-500 mb-4">ATTACCO GOBLIN!</h2>
-              <p className="text-white mb-6">Le tue costruzioni sono in pericolo!</p>
-              <button 
-                onClick={handleStartDefense}
-                className="bg-red-600 hover:bg-red-700 text-white px-10 py-4 font-bold uppercase"
-              >
-                Difendi il Villaggio
-              </button>
-            </div>
-          </div>
-        )}
-
-        {/* 3. Banner Persistente (Non blocca i click) */}
-        {isDefending && isGoblinAttackActive && (
-          <div className="absolute top-20 left-1/2 -translate-x-1/2 bg-red-600 text-white px-6 py-2 rounded-full font-black animate-bounce pointer-events-none">
-            🔥 DIFESA IN CORSO: CLICCA SULLE SPADE 🔥
-          </div>
-        )}
-      </div>
-
-      {/* Messaggio temporaneo attacco goblin - RIMOSSO: usare toasts invece */}
-
-      <div
-        ref={mapRef}
-        onMouseMove={handleMouseMove}
-        onMouseUp={handleMouseUp}
-        onMouseLeave={handleMouseUp}
-        style={{ position: 'relative', width: '1024px', height: '1024px', userSelect: 'none', pointerEvents: 'auto', cursor: draggingId !== null ? 'grabbing' : 'default' }}
-      >
-        <img src={mapImage} style={{ width: '100%', height: '100%', pointerEvents: 'none' }} alt="Mappa" />
-
-
-        {/* Render all buildings EXCEPT the Mine */}
-        {locations.filter((loc) => loc.buildingType !== 'mine').map((loc) => (
-          <div
-            key={loc.id}
-            onMouseDown={() => handleMouseDown(loc.id)}
-            onClick={() => {
-              if (!loc.is_built) {
-                setSelectedLocation(loc.id);
-              }
-            }}
-            style={{
-              position: 'absolute',
-              top: `${loc.coordinateY}%`,
-              left: `${loc.coordinateX}%`,
-              transform: 'translate(-50%, -50%)',
-              cursor: DISABLE_BUILDING_DRAG ? 'default' : (draggingId === loc.id ? 'grabbing' : 'grab'),
-              zIndex: selectedLocation === loc.id ? 1000 : draggingId === loc.id ? 100 : 10,
-              display: 'flex',
-              flexDirection: 'column-reverse', // etichetta sopra, immagine sotto
-              alignItems: 'center',
-              // Se attacco goblin attivo: disabilita solo gli edifici non-defense COSTRUITI
-              opacity: isGoblinAttackActive && loc.buildingType !== 'defense' && loc.is_built ? 0.5 : 1,
-              pointerEvents: isGoblinAttackActive && loc.buildingType !== 'defense' && loc.is_built ? 'none' : 'auto',
-            }}
-          >
-            {/* Fire Swords Overlay when under attack - visible only in defending mode */}
-            {(() => {
-              const defended = defendedBuildings.includes(loc.name);
-              const ruined = ruinedBuildings.includes(loc.name);
-              const showSwords = isGoblinAttackActive && isDefending && loc.is_built && !defended && !ruined && loc.buildingType !== 'mine';
-              if (!showSwords) return null;
-              return (
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    // Start mini combat for this building
-                    setActiveMiniCombat(loc.name);
-                  }}
-                  style={{
-                    position: 'absolute',
-                    top: '-40px',
-                    left: '50%',
-                    transform: 'translateX(-50%)',
-                    backgroundColor: 'rgba(255,69,0,0.85)',
-                    border: '2px solid #ffae42',
-                    color: 'white',
-                    padding: '6px 10px',
-                    borderRadius: '999px',
-                    cursor: 'pointer',
-                    boxShadow: '0 0 20px rgba(255,140,0,0.8)',
-                    animation: 'pulse 1s infinite',
-                    zIndex: 100,
-                    pointerEvents: 'auto',
-                  }}
-                  title={`Difendi ${loc.name}`}
-                >
-                  ⚔️🔥 Difendi
-                </button>
-              );
-            })()}
-            {/* Blue Hammer Overlay for ruined buildings (repair) */}
-            {(() => {
-              const ruined = ruinedBuildings.includes(loc.name);
-              if (!ruined) return null;
-              return (
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    openRepairPopup(loc);
-                  }}
-                  style={{
-                    position: 'absolute',
-                    top: '-40px',
-                    left: '50%',
-                    transform: 'translateX(-50%)',
-                    backgroundColor: 'rgba(59,130,246,0.9)',
-                    border: '2px solid #60a5fa',
-                    color: 'white',
-                    padding: '6px 10px',
-                    borderRadius: '999px',
-                    cursor: 'pointer',
-                    boxShadow: '0 0 20px rgba(59,130,246,0.8)',
-                    animation: 'pulse 1s infinite',
-                    zIndex: 100,
-                    pointerEvents: 'auto',
-                  }}
-                  title={`Ripara ${loc.name}`}
-                >
-                  <span style={{ marginRight: '6px' }}>🔧</span> Ripara
-                </button>
-              );
-            })()}
-            <img
-              src={getBuildingSprite(loc, ruinedBuildings)}
-              alt={loc.name}
-              style={{
-                // Dimensionamento specifico per tipologia: magazzino +30%, miniera -50%
-                width: loc.is_built
-                  ? loc.buildingType === 'warehouse'
-                    ? '203px'
-                    : loc.buildingType === 'mine'
-                      ? '60px'
-                      : loc.buildingType === 'sawmill'
-                        ? '156px'
-                        : '120px'
-                  : '60px',
-                height: 'auto',
-                pointerEvents: 'none',
-                filter: loc.is_built ? 'none' : 'drop-shadow(0 0 10px gold)',
-              }}
-            />
-            <span
-              style={{
-                backgroundColor: 'rgba(0,0,0,0.7)',
-                color: 'white',
-                padding: '2px 10px',
-                borderRadius: '12px',
-                fontSize: '13px',
-                fontWeight: 'bold',
-                marginBottom: '8px',
-                whiteSpace: 'nowrap',
-                boxShadow: '0 2px 4px rgba(0,0,0,0.3)',
-                pointerEvents: 'none',
-              }}
-            >
-              {loc.name}
-            </span>
-
-            {selectedLocation === loc.id && !loc.is_built && !(loc.buildingType === 'mine' && !isGoblinAttackActive) && (
-              <div
-                style={{
-                  position: 'absolute',
-                  left: '70px',
-                  top: '0',
-                  backgroundColor: 'rgba(0, 0, 0, 0.9)',
-                  color: 'white',
-                  padding: '15px',
-                  borderRadius: '8px',
-                  border: '2px solid gold',
-                  width: '220px',
-                  boxShadow: '0 4px 15px rgba(0,0,0,0.5)',
-                  zIndex: 1001,
-                  opacity: isGoblinAttackActive && loc.buildingType !== 'defense' ? 0.6 : 1,
-                }}
-              >
-                <h3 style={{ margin: '0 0 10px 0', fontSize: '16px' }}>{loc.name}</h3>
-                <p style={{ fontSize: '12px', color: '#ccc', margin: 0 }}>
-                  <strong>Effetto:</strong> {getEffectDescription(loc.buildingType)}
-                </p>
-                <div style={{ fontSize: '13px', margin: '12px 0' }}>
-                  💰 {loc.requiredWood ?? loc.required_wood ?? 0} Legno | {loc.requiredStone ?? loc.required_stone ?? 0} Pietra | {loc.requiredGold ?? loc.required_gold ?? 0} Oro
-                </div>
-                <div style={{ display: 'flex', gap: '10px' }}>
-                  <button
-                    onClick={(e) => { e.stopPropagation(); handleBuildRequest(loc); }}
-                    disabled={isGoblinAttackActive && loc.buildingType !== 'defense'}
-                    style={{
-                      backgroundColor: isGoblinAttackActive && loc.buildingType !== 'defense' ? '#666' : '#28a745',
-                      color: 'white',
-                      border: 'none',
-                      padding: '6px 10px',
-                      borderRadius: '4px',
-                      cursor: isGoblinAttackActive && loc.buildingType !== 'defense' ? 'not-allowed' : 'pointer',
-                      flex: 1,
-                      opacity: isGoblinAttackActive && loc.buildingType !== 'defense' ? 0.6 : 1,
-                    }}
-                  >
-                    Costruisci
-                  </button>
-                  <button
-                    onClick={(e) => { e.stopPropagation(); setSelectedLocation(null); }}
-                    style={{ backgroundColor: '#dc3545', color: 'white', border: 'none', padding: '6px 10px', borderRadius: '4px', cursor: 'pointer' }}
-                  >
-                    X
-                  </button>
-                </div>
-              </div>
-            )}
+      {/* TOASTS */}
+      <div className="absolute bottom-5 left-5 z-[3000] flex flex-col gap-2">
+        {toasts.map(t => (
+          <div key={t.id} className={`p-3 rounded shadow-lg text-white font-bold ${
+            t.type === 'success' ? 'bg-green-600' : t.type === 'error' ? 'bg-red-600' : 'bg-blue-600'
+          }`}>
+            {t.message}
           </div>
         ))}
-
-        {/* Mine rendering - ONLY when is_unlocked === true */}
-        {locations.filter((loc) => loc.buildingType === 'mine').map((mine) =>
-          mine.is_unlocked ? (
-            <div
-              key={`mine-${mine.id}`}
-              style={{
-                position: 'absolute',
-                top: `${mine.coordinateY}%`,
-                left: `${mine.coordinateX}%`,
-                transform: 'translate(-50%, -50%)',
-                zIndex: 50,
-              }}
-            >
-              {/* Yellow Triangle (Cantiere) when unlocked but not built */}
-              {!mine.is_built ? (
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setShowMineRebuildPopup(true);
-                  }}
-                  style={{
-                    position: 'absolute',
-                    top: '-48px',
-                    left: '50%',
-                    transform: 'translateX(-50%)',
-                    backgroundColor: 'rgba(234,179,8,0.9)',
-                    border: '2px solid #d97706',
-                    color: '#1f2937',
-                    padding: '8px 12px',
-                    borderRadius: '10px',
-                    fontWeight: 800,
-                    boxShadow: '0 0 20px rgba(234,179,8,0.8)',
-                    animation: 'pulse 1.2s infinite',
-                    zIndex: 120,
-                    pointerEvents: 'auto',
-                    cursor: 'pointer',
-                  }}
-                  title="Miniera scoperta! Ricostruisci"
-                >
-                  ⚠️ Cantiere Miniera
-                </button>
-              ) : (
-                /* Built Mine - show regular mine icon */
-                <div
-                  style={{
-                    display: 'flex',
-                    flexDirection: 'column',
-                    alignItems: 'center',
-                    gap: '8px',
-                  }}
-                >
-                  <img
-                    src={buildingAssets['mine']}
-                    alt="Miniera"
-                    style={{
-                      width: '60px',
-                      height: 'auto',
-                      pointerEvents: 'none',
-                      filter: 'none',
-                    }}
-                  />
-                  <span
-                    style={{
-                      backgroundColor: 'rgba(0,0,0,0.7)',
-                      color: 'white',
-                      padding: '2px 10px',
-                      borderRadius: '12px',
-                      fontSize: '13px',
-                      fontWeight: 'bold',
-                      whiteSpace: 'nowrap',
-                      boxShadow: '0 2px 4px rgba(0,0,0,0.3)',
-                      pointerEvents: 'none',
-                    }}
-                  >
-                    {mine.name}
-                  </span>
-                </div>
-              )}
-            </div>
-          ) : null
-        )}
       </div>
-    </div>
-  );
-      {/* Mine Rebuild Popup */}
-      {showMineRebuildPopup && (
-        <div
-          style={{
-            position: 'fixed',
-            inset: 0,
-            backgroundColor: 'rgba(0,0,0,0.7)',
-            backdropFilter: 'blur(6px)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            zIndex: 4500,
-          }}
-          onClick={() => setShowMineRebuildPopup(false)}
-        >
-          <div
-            style={{
-              background: 'linear-gradient(135deg, #0f172a, #1f2937)',
-              border: '3px solid #f59e0b',
-              borderRadius: '16px',
-              padding: '24px',
-              width: '520px',
-              color: 'white',
-            }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <h3 style={{ fontSize: '22px', fontWeight: 900, marginBottom: '8px' }}>Miniera Scoperta!</h3>
-            <p style={{ color: '#fef3c7', marginBottom: '16px' }}>
-              Vuoi ricostruirla per abilitare l'estrazione?
-            </p>
-            <div style={{ display: 'flex', gap: '12px', marginBottom: '16px' }}>
-              <div style={{ flex: 1, backgroundColor: 'rgba(234,179,8,0.15)', padding: '10px', borderRadius: '10px', border: '2px solid #f59e0b' }}>
-                🪨 Pietra: <strong>{mineRebuildCost.stone}</strong>
-              </div>
-              <div style={{ flex: 1, backgroundColor: 'rgba(234,179,8,0.15)', padding: '10px', borderRadius: '10px', border: '2px solid #f59e0b' }}>
-                💰 Oro: <strong>{mineRebuildCost.gold}</strong>
-              </div>
-            </div>
-            <div style={{ display: 'flex', gap: '12px' }}>
-              <button
-                onClick={confirmMineRebuild}
-                style={{
-                  flex: 1,
-                  backgroundColor: '#f59e0b',
-                  color: '#1f2937',
-                  border: '2px solid #d97706',
-                  padding: '10px 14px',
-                  borderRadius: '10px',
-                  fontWeight: 800,
-                  cursor: 'pointer',
-                }}
-              >
-                RICOSTRUISCI
-              </button>
-              <button
-                onClick={() => setShowMineRebuildPopup(false)}
-                style={{
-                  flex: 1,
-                  backgroundColor: '#374151',
-                  color: 'white',
-                  border: '2px solid #6b7280',
-                  padding: '10px 14px',
-                  borderRadius: '10px',
-                  fontWeight: 800,
-                  cursor: 'pointer',
-                }}
-              >
-                ANNULLA
-              </button>
-            </div>
-          </div>
+
+      {/* COMBAT OVERLAY */}
+      {activeMiniCombat && (
+        <div className="absolute inset-0 z-[5000]">
+          <TacticalScreen 
+            isVillageDefenseMode={true}
+            buildingName={activeMiniCombat}
+            onVillageVictory={(buildingName) => handleMiniCombatVictory(buildingName)}
+            onVillageDefeat={(buildingName) => handleMiniCombatDefeat(buildingName)}
+            onVillageClose={() => setActiveMiniCombat(null)}
+          />
         </div>
       )}
+
 
       {/* Repair Popup */}
       {showRepairPopup && repairTarget && (
@@ -1659,6 +1182,8 @@ const HomeDashboard = () => {
           </div>
         </div>
       )}
+    </div>
+  );
 };
 
 export default HomeDashboard;

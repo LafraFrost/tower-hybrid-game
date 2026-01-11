@@ -397,37 +397,6 @@ const HomeDashboard = () => {
       >
         <img src={mapImage} style={{ width: '100%', height: '100%', pointerEvents: 'none' }} alt="Mappa" />
 
-        {/* Scritta attacco goblin al centro della mappa */}
-        {isGoblinAttackActive && (
-          <div
-            style={{
-              position: 'absolute',
-              top: '50%',
-              left: 0,
-              right: 0,
-              width: '100%',
-              textAlign: 'center',
-              transform: 'translateY(-50%)',
-              zIndex: 2000,
-              pointerEvents: 'none',
-            }}
-          >
-            <span
-              style={{
-                display: 'inline-block',
-                whiteSpace: 'nowrap',
-                color: 'red',
-                fontSize: '48px',
-                fontWeight: 'bold',
-                textShadow: '0 0 20px rgba(255, 0, 0, 0.8)',
-                margin: 0,
-                animation: 'wobble 0.8s infinite',
-              }}
-            >
-              ⚠️ ATTACCO GOBLIN IN CORSO! ⚠️
-            </span>
-          </div>
-        )}
 
         {locations.map((loc) => (
           <div

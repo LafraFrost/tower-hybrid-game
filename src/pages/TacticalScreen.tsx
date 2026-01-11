@@ -303,29 +303,9 @@ const TacticalScreen = ({
   const [bossRewards, setBossRewards] = useState({ stone: 10, gold: 5 });
   const [targetBuilding, setTargetBuilding] = useState<string | null>(null);
 
-  // Load progress on mount (localStorage first, then sync with DB when selectedHero is ready)
+  // Load progress on mount from DB when selectedHero is ready
   useEffect(() => {
-    try {
-      console.log('🔍 Initial load: checking localStorage...');
-      console.log('📋 STORAGE_KEY:', STORAGE_KEY);
-      console.log('📋 localStorage keys:', Object.keys(localStorage));
-      
-      const raw = localStorage.getItem(STORAGE_KEY);
-        console.log('📋 localStorage.getItem result:', raw);
-      
-      if (raw) {
-        const saved = JSON.parse(raw);
-        console.log('📦 Progress loaded from localStorage:', saved);
-        if (typeof saved.currentNode === "number") setCurrentNode(saved.currentNode);
-        if (Array.isArray(saved.visited)) setVisited(new Set<number>(saved.visited));
-        if (Array.isArray(saved.logs)) setLogs(saved.logs);
-        if (typeof saved.bossDefeated === "boolean") setBossDefeated(saved.bossDefeated);
-      } else {
-        console.log('ℹ️ No saved progress in localStorage, starting fresh');
-      }
-    } catch (err) {
-      console.error('❌ Error loading from localStorage:', err);
-    }
+    console.log('⏳ Waiting for selectedHero to load progress...');
   }, []);
 
   // Sync with DB when selectedHero becomes available
@@ -346,7 +326,7 @@ const TacticalScreen = ({
           setLogs(db.logs?.length ? db.logs : ["Progresso caricato dal database."]);
           setBossDefeated(!!db.bossDefeated);
         } else {
-          console.log('ℹ️ No progress in DB yet, keeping localStorage state');
+          console.log('ℹ️ No progress in DB yet, starting fresh');
         }
       } catch (err) {
         console.error('❌ Error syncing with DB:', err);
@@ -690,12 +670,6 @@ const TacticalScreen = ({
       
       // Legacy URL-based building defense
       if (targetBuilding) {
-        try {
-          const raw = localStorage.getItem('ruined_buildings');
-          const list: string[] = raw ? JSON.parse(raw) : [];
-          if (!list.includes(targetBuilding)) list.push(targetBuilding);
-          localStorage.setItem('ruined_buildings', JSON.stringify(list));
-        } catch {}
         appendLog(`Sconfitta nella difesa di ${targetBuilding}. Edificio in rovina.`);
         setLocation('/village');
         setBattleNode(null);
@@ -742,17 +716,14 @@ const TacticalScreen = ({
         // Save rewards to database
         await saveRewardsToDatabase(bossRewards.stone, bossRewards.gold);
         await updateSupabaseProgress();
+        
+        // STATO 2 MINIERA: Set mine_map_completed = true in game_locations
+        await setMineMapCompleted();
       }, 2000);
     }
 
     // If this was a direct building combat victory, mark building as defended and return to Village
     if (targetBuilding && node.id !== 22) {
-      try {
-        const raw = localStorage.getItem('defended_buildings');
-        const list: string[] = raw ? JSON.parse(raw) : [];
-        if (!list.includes(targetBuilding)) list.push(targetBuilding);
-        localStorage.setItem('defended_buildings', JSON.stringify(list));
-      } catch {}
       appendLog(`Difesa riuscita: ${targetBuilding} salvata.`);
       setLocation('/village');
     }
@@ -873,6 +844,38 @@ const TacticalScreen = ({
     } catch (err) {
       console.error("Supabase error", err);
       appendLog("Supabase non raggiungibile per l'aggiornamento");
+    }
+  };
+
+  const setMineMapCompleted = async () => {
+    const url = import.meta.env.VITE_SUPABASE_URL;
+    const key = import.meta.env.VITE_SUPABASE_ANON_KEY;
+    if (!url || !key) {
+      console.error("Supabase non configurato.");
+      return;
+    }
+
+    try {
+      // Update game_locations: set mine_map_completed = true for Miniera
+      const response = await fetch(`${url}/rest/v1/game_locations?user_id=eq.1&name=eq.Miniera`, {
+        method: "PATCH",
+        headers: {
+          apikey: key,
+          Authorization: `Bearer ${key}`,
+          "Content-Type": "application/json",
+          Prefer: "return=minimal",
+        },
+        body: JSON.stringify({ mine_map_completed: true }),
+      });
+
+      if (!response.ok) {
+        console.error("❌ Errore aggiornamento mine_map_completed:", response.statusText);
+      } else {
+        console.log("✅ Mine STATO 2: mine_map_completed = true (Martello visibile)");
+        appendLog("🔨 Miniera pronta per la ricostruzione!");
+      }
+    } catch (err) {
+      console.error("Errore connessione database:", err);
     }
   };
 

@@ -37,6 +37,7 @@ export default function App() {
           <Route path="/home" component={HomeDashboard} />
           <Route path="/village" component={HomeDashboard} />
           <Route path="/solo" component={CampaignMap} />
+          <Route path="/map/:mapId" component={CampaignMap} />
           
           {/* Tabletop Multiplayer */}
           <Route path="/tabletop" component={TabletopSession} />

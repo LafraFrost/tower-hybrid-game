@@ -62,6 +62,9 @@ export const gameLocations = pgTable("game_locations", {
   coordinateX: doublePrecision("coordinate_x").notNull(), // Position in % (0-100)
   coordinateY: doublePrecision("coordinate_y").notNull(), // Position in % (0-100)
   is_built: boolean("is_built").default(false),
+  is_unlocked: boolean("is_unlocked").default(true), // Miniera starts as false until Goblin victory
+  is_under_attack: boolean("is_under_attack").default(false),
+  mine_map_completed: boolean("mine_map_completed").default(false), // True after map 22 victory
   level: integer("level").default(1),
   requiredWood: integer("required_wood").default(0),
   requiredStone: integer("required_stone").default(0),
