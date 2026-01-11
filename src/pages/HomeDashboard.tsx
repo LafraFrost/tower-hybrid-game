@@ -280,104 +280,9 @@ const HomeDashboard = () => {
     };
   }, []);
 
-  const startGoblinAttackSequence = async () => {
-    if (isGoblinAttackActive) return;
-    try {
-      // Upsert goblin attack event as active
-      const { data: existing, error: selErr } = await supabase
-        .from('events')
-        .select('id')
-        .eq('event_type', 'goblin_attack')
-        .limit(1);
-      if (selErr) {
-        console.warn('⚠️ Errore lettura evento Goblin:', selErr);
-      }
-      if (existing && existing.length > 0) {
-        const { error: updErr } = await supabase
-          .from('events')
-          .update({ is_active: true, triggered_at: new Date().toISOString() })
-          .eq('id', existing[0].id);
-        if (updErr) console.warn('⚠️ Errore aggiornamento evento Goblin:', updErr);
-      } else {
-        const { error: insErr } = await supabase
-          .from('events')
-          .insert({ event_type: 'goblin_attack', is_active: true, triggered_at: new Date().toISOString() });
-        if (insErr) console.warn('⚠️ Errore inserimento evento Goblin:', insErr);
-      }
 
-      // Clear local state - DB-driven only (no localStorage)
 
-      // Mark built locations (except Mine) as under attack in DB
-      const targets = locations.filter((l) => Boolean(l.is_built) && normalizeBuildingType(l) !== 'mine');
-      for (const loc of targets) {
-        const { error: locErr } = await supabase
-          .from('game_locations')
-          .update({ is_under_attack: true })
-          .eq('id', loc.id);
-        if (locErr) console.warn(`⚠️ Errore set under_attack per ${loc.name}:`, locErr);
-      }
 
-      // Refresh and enter defense mode
-      const refreshed = await fetchLocations();
-      setIsDefending(true);
-      if (!refreshed) {
-        showToast('warning', 'Evento avviato, ma sincronizzazione locations non riuscita.', { duration: 3500 });
-      }
-      showToast('info', '🔥 Attacco Goblin iniziato! Difendi il villaggio!', { duration: 4000 });
-    } catch (err) {
-      console.error('❌ Errore avvio sequenza:', err);
-      showToast('error', '❌ Errore durante l\'avvio dell\'evento Goblin.', { duration: 4000 });
-    }
-  };
-
-  const toggleGoblinAttack = async () => {
-    try {
-      console.log('Toggling goblin attack:', !isGoblinAttackActive);
-
-      const newStatus = !isGoblinAttackActive;
-
-      // Aggiorna se esiste, altrimenti inserisci
-      const { data: existing, error: selErr } = await supabase
-        .from('events')
-        .select('id')
-        .eq('event_type', 'goblin_attack')
-        .limit(1);
-
-      if (selErr) {
-        console.error('Error selecting goblin event:', selErr);
-      }
-
-      if (existing && existing.length > 0) {
-        const { error: updErr } = await supabase
-          .from('events')
-          .update({ is_active: newStatus, updated_at: new Date().toISOString() })
-          .eq('id', existing[0].id);
-        if (updErr) {
-          console.error('Error updating goblin event:', updErr);
-        }
-      } else {
-        const { error: insErr } = await supabase
-          .from('events')
-          .insert({ event_type: 'goblin_attack', is_active: newStatus, triggered_at: new Date().toISOString() });
-        if (insErr) {
-          console.error('Error inserting goblin event:', insErr);
-        }
-      }
-
-      // Reload locations to update derived isGoblinAttackActive
-      await fetchLocations();
-      
-      // Reset defense mode and toasts when disabling attack
-      if (!newStatus) {
-        setIsDefending(false);
-        setToasts([]);
-      }
-      
-      console.log('✅ Goblin attack status updated in Supabase');
-    } catch (error) {
-      console.error('Error in toggleGoblinAttack:', error);
-    }
-  };
 
   useEffect(() => {
     loadLocations();
@@ -807,19 +712,11 @@ const HomeDashboard = () => {
       return;
     }
 
-    // Determine if this was the last building under attack (based on local state)
-    // Check if any buildings still under attack (using DB field)
-    const anyUnderAttackLeft = locations.some((loc) => {
-      const bt = normalizeBuildingType(loc);
-      if (!bt) return false;
-      const built = Boolean(loc.is_built);
-      const underAttack = Boolean(loc.is_under_attack);
-      return isGoblinAttackActive && built && underAttack && loc.name !== buildingName;
-    });
+    // Verifica se restano edifici sotto attacco; se no, spegni evento e sblocca la Miniera
+    const currentLocId = buildingLoc?.id ?? null;
+    const remainingAttacks = locations.filter((l) => Boolean(l.is_under_attack) && l.id !== currentLocId);
 
-    // If no buildings left under attack, kill the goblin event and unlock mine in DB
-    if (!anyUnderAttackLeft) {
-      // Kill switch: deactivate goblin attack event
+    if (remainingAttacks.length === 0) {
       const { error: eventErr } = await supabase
         .from('events')
         .update({ is_active: false })
@@ -830,39 +727,17 @@ const HomeDashboard = () => {
         return; // Do not close UI if DB failed
       }
 
-      // Unlock the Mine on DB ONLY if all buildings were defended (no ruins)
-      const allDefended = locations
-        .filter((l) => Boolean(l.is_built) && normalizeBuildingType(l) !== 'mine')
-        .every((l) => updatedDefended.includes(l.name));
-      
-      console.log('🏆 Difesa completata - Tutti gli edifici difesi:', allDefended);
-      
-      if (allDefended) {
-        const mineLoc = locations.find((l) => normalizeBuildingType(l) === 'mine');
-        if (mineLoc) {
-          console.log('🔓 Sblocco Miniera - is_unlocked prima:', mineLoc.is_unlocked);
-          const { error: mineErr } = await supabase
-            .from('game_locations')
-            .update({ is_unlocked: true })
-            .eq('id', mineLoc.id);
-          if (mineErr) {
-            console.warn('⚠️ Failed to unlock Mine:', mineErr);
-            showToast('error', 'Errore DB: impossibile sbloccare la Miniera.');
-            return; // Do not close UI if DB failed
-          }
-          console.log('✅ Miniera sbloccata con successo!');
-          showToast('success', '⛏️ Miniera sbloccata! Ricostruiscila per accedere all\'estrazione.', { duration: 5000 });
-          
-          // Sync locations immediately after unlock to update UI
-          const mineRefreshed = await fetchLocations();
-          if (!mineRefreshed) {
-            console.warn('⚠️ Failed to refresh locations after Mine unlock');
-          }
-        }
-      } else {
-        console.log('⚠️ Miniera NON sbloccata - alcuni edifici sono stati distrutti');
-        showToast('warning', 'Evento terminato, ma alcuni edifici sono stati distrutti. Miniera non sbloccata.', { duration: 4000 });
+      const { error: mineErr } = await supabase
+        .from('game_locations')
+        .update({ is_unlocked: true })
+        .eq('building_type', 'mine');
+      if (mineErr) {
+        console.warn('⚠️ Failed to unlock Mine:', mineErr);
+        showToast('error', 'Errore DB: impossibile sbloccare la Miniera.');
+        return; // Do not close UI if DB failed
       }
+
+      console.log('🔥 Attacco terminato! Evento spento e Miniera sbloccata.');
     }
 
     // Sync locations after DB updates
@@ -1076,7 +951,6 @@ const HomeDashboard = () => {
       {/* UI OVERLAYS (ResourceBar, Menu, Toasts) */}
       <ResourceBar resources={resources} />
       <MenuButton />
-      <DevTriggerButton isActive={isGoblinAttackActive} onStart={startGoblinAttackSequence} />
       <ResetButton onReset={handleReset} />
 
       {/* TOASTS */}
