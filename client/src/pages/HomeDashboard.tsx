@@ -71,38 +71,7 @@ const MenuButton = () => (
   </button>
 );
 
-const DevTriggerButton = ({ isActive, onToggle }: { isActive: boolean; onToggle: () => void }) => (
-  <button 
-    onClick={onToggle}
-    style={{
-      position: 'absolute',
-      top: '20px',
-      right: '20px',
-      opacity: 0.9,
-      fontSize: '12px',
-      padding: '8px 12px',
-      backgroundColor: isActive ? '#dc2626' : '#ff6b00',
-      color: 'white',
-      border: '2px solid ' + (isActive ? '#991b1b' : '#b45309'),
-      borderRadius: '4px',
-      cursor: 'pointer',
-      zIndex: 9999,
-      transition: 'all 0.3s',
-      fontWeight: 'bold',
-      pointerEvents: 'auto',
-    }}
-    onMouseEnter={(e) => {
-      e.currentTarget.style.opacity = '1';
-      e.currentTarget.style.boxShadow = '0 0 15px ' + (isActive ? 'rgba(220, 38, 38, 0.8)' : 'rgba(255, 107, 0, 0.8)');
-    }}
-    onMouseLeave={(e) => {
-      e.currentTarget.style.opacity = '0.9';
-      e.currentTarget.style.boxShadow = 'none';
-    }}
-  >
-    {isActive ? '❌ ATTACCO ON' : '✓ ATTACCO OFF'}
-  </button>
-);
+// DevTriggerButton rimosso — non esporre controllo sviluppo per attacchi Goblin
 
 const HomeDashboard = () => {
   const [locations, setLocations] = useState<any[]>([]);
@@ -328,7 +297,7 @@ const HomeDashboard = () => {
       style={{ width: '100vw', height: '100vh', display: 'flex', justifyContent: 'center', alignItems: 'center', backgroundColor: '#1a1a1a', position: 'relative' }}
     >
       <MenuButton />
-      <DevTriggerButton isActive={isGoblinAttackActive} onToggle={handleDevToggleGoblinAttack} />
+      {/* DevTriggerButton removed in main app */}
       <ResourceBar resources={resources} />
 
       {/* Banner testuale animato: centrato tra ResourceBar (20px) e messaggio (100px) */}
