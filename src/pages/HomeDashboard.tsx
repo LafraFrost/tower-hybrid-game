@@ -3,6 +3,10 @@ import { useLocation } from 'wouter';
 import { supabase } from '@/lib/supabaseClient';
 import ResourceBar, { MenuButton, ResetButton } from '@/components/ResourceBar';
 
+const normalizeBuildingType = (loc: any) => {
+  return loc.building_type || (loc.name?.toLowerCase().includes('miniera') ? 'mine' : 'house');
+};
+
 const HomeDashboard = () => {
   const [, setLocation] = useLocation(); // Router per navigazione
   const [locations, setLocations] = useState<any[]>([]);
