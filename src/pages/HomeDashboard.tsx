@@ -3,25 +3,36 @@ import { useLocation } from 'wouter';
 import { supabase } from '@/lib/supabaseClient';
 import ResourceBar, { MenuButton, ResetButton } from '@/components/ResourceBar';
 
-const getBuildingSprite = (loc: any) => {
-  const type = loc.buildingType || (loc.building_type as string) || (loc.name || '').toLowerCase().includes('miniera') ? 'mine' : 'house';
-  if (type === 'mine') {
-    if (loc.is_built) return '/assets/miniera.png';
-    // return a small SVG triangle marker as data URL for unbuilt mine
-    return 'data:image/svg+xml;utf8,' + encodeURIComponent(
-      '<svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 64 64"><polygon points="32,6 58,58 6,58" fill="%23F59E0B" stroke="%23FFFFFF" stroke-width="3"/></svg>'
-    );
-  }
-  if (type === 'sawmill') return '/assets/segheria.png';
-  if (type === 'farm') return '/assets/orto.png';
-  if (type === 'blacksmith') return '/assets/fucina.png';
-  if (type === 'bridge') return '/assets/ponte.png';
-  // house/warehouse fallback
-  return '/assets/magazzino.png';
+const normalizeBuildingType = (loc: any) => {
+  if (!loc) return '';
+  const type = (loc.building_type || loc.type || '').toLowerCase();
+  const name = (loc.name || '').toLowerCase();
+  
+  if (type === 'house' || name.includes('casa')) return 'house';
+  if (type === 'mine' || name.includes('miniera')) return 'mine';
+  if (type === 'sawmill' || name.includes('segheria')) return 'sawmill';
+  if (type === 'forge' || name.includes('fucina')) return 'forge';
+  if (type === 'bridge' || name.includes('ponte')) return 'bridge';
+  if (type === 'warehouse' || name.includes('magazzino')) return 'warehouse';
+  if (type === 'garden' || name.includes('orto')) return 'garden';
+  return type;
 };
 
-const normalizeBuildingType = (loc: any) => {
-  return loc.building_type || (loc.name?.toLowerCase().includes('miniera') ? 'mine' : 'house');
+const getBuildingSprite = (type: string, isBuilt: boolean) => {
+  // Se l'edificio non è costruito, mostriamo SEMPRE il triangolo (cantiere)
+  // Tranne per la casa che è costruita di default
+  if (!isBuilt && type !== 'house') return '/assets/ui/cantiere_triangolo.png';
+
+  switch (type) {
+    case 'house': return '/assets/buildings/house.png';
+    case 'mine': return '/assets/buildings/mine.png';
+    case 'sawmill': return '/assets/buildings/sawmill.png';
+    case 'forge': return '/assets/buildings/forge.png';
+    case 'bridge': return '/assets/buildings/bridge.png';
+    case 'warehouse': return '/assets/buildings/warehouse.png';
+    case 'garden': return '/assets/buildings/garden.png';
+    default: return '/assets/buildings/placeholder.png';
+  }
 };
 
 const HomeDashboard = () => {
@@ -68,6 +79,15 @@ const HomeDashboard = () => {
     } catch (err) {
       console.warn('⚠️ Exception while fetching locations:', err);
       return false;
+    }
+  };
+
+  const handleBuildingClick = (loc: any) => {
+    // basic handler: select the location and open its details
+    setSelectedLocation(loc.id ?? null);
+    // if there is a specific action for built vs unbuilt, can be added here
+    if (loc.is_under_attack) {
+      showToast('warning', `Edificio ${loc.name} sotto attacco!`, { duration: 3000 });
     }
   };
 
@@ -860,7 +880,7 @@ const HomeDashboard = () => {
             <div
               key={loc.id}
               onMouseDown={() => handleMouseDown(loc.id)}
-              onClick={() => setSelectedLocation(loc.id)}
+              onClick={() => handleBuildingClick(loc)}
               className="absolute cursor-pointer transition-transform hover:scale-110"
               style={{
                 top: `${loc.coordinateY || 50}%`,
@@ -869,11 +889,11 @@ const HomeDashboard = () => {
                 zIndex: draggingId === loc.id ? 1000 : 100,
               }}
             >
-              <img 
-                src={getBuildingSprite(loc)} 
-                alt={loc.name} 
-                className={`w-16 h-16 object-contain ${!loc.is_built ? 'opacity-80' : ''}`} 
-              />
+                <img 
+                  src={getBuildingSprite(normalizeBuildingType(loc), Boolean(loc.is_built))} 
+                  alt={loc.name} 
+                  className={`w-16 h-16 object-contain ${!loc.is_built ? 'opacity-80' : ''}`} 
+                />
             </div>
           );
         })}
