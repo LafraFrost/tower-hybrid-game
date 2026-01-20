@@ -5,22 +5,22 @@ import ResourceBar, { MenuButton, ResetButton } from '@/components/ResourceBar';
 
 const normalizeBuildingType = (loc: any) => {
   if (!loc) return '';
-  const type = (loc.building_type || loc.type || '').toLowerCase();
+  // Usiamo il nome o il tipo dal DB per identificare l'edificio
   const name = (loc.name || '').toLowerCase();
-  
-  if (type === 'house' || name.includes('casa')) return 'house';
-  if (type === 'mine' || name.includes('miniera')) return 'mine';
-  if (type === 'sawmill' || name.includes('segheria')) return 'sawmill';
-  if (type === 'forge' || name.includes('fucina')) return 'forge';
-  if (type === 'bridge' || name.includes('ponte')) return 'bridge';
-  if (type === 'warehouse' || name.includes('magazzino')) return 'warehouse';
-  if (type === 'garden' || name.includes('orto')) return 'garden';
+  const type = (loc.building_type || '').toLowerCase();
+
+  if (name.includes('casa') || type === 'house') return 'house';
+  if (name.includes('miniera') || type === 'mine') return 'mine';
+  if (name.includes('segheria') || type === 'sawmill') return 'sawmill';
+  if (name.includes('fucina') || type === 'forge') return 'forge';
+  if (name.includes('ponte') || type === 'bridge') return 'bridge';
+  if (name.includes('magazzino') || type === 'warehouse') return 'warehouse';
+  if (name.includes('orto') || type === 'garden') return 'garden';
   return type;
 };
 
 const getBuildingSprite = (type: string, isBuilt: boolean) => {
-  // Se l'edificio non è costruito, mostriamo SEMPRE il triangolo (cantiere)
-  // Tranne per la casa che è costruita di default
+  // Se non è costruito, mostriamo il triangolo (cantiere), tranne per la casa
   if (!isBuilt && type !== 'house') return '/assets/ui/cantiere_triangolo.png';
 
   switch (type) {
